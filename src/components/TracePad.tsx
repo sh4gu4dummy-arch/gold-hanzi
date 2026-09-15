@@ -7,7 +7,9 @@ import {
   buildLetterMask,
   clearInk,
   describeGradeNeeds,
+  earlyMedianTangent,
   evaluateGrade,
+  hanziScale,
   inkWidthCss,
   stampInkSegment,
 } from '../lib/grading'
@@ -72,18 +74,124 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
-/** Draw stroke-path guides (same transform as grading mask / hanzi-writer). */
+/**
+ * CSS-px marker size mapped into hanzi space (10–14px, readable on phones).
+ * Under applyHanziTransform, 1 hanzi unit = hanziScale(cssSize) CSS px.
+ */
+function markerSizeHanzi(cssSize: number): { u: number; scale: number } {
+  const scale = Math.max(hanziScale(cssSize), 1e-9)
+  const cssPx = Math.min(14, Math.max(10, Math.round(cssSize * 0.038)))
+  return { u: cssPx / scale, scale }
+}
+
+/** Small chevron along the early median tangent (hanzi y-up). */
+function drawGuideArrow(
+  ctx: CanvasRenderingContext2D,
+  ox: number,
+  oy: number,
+  tx: number,
+  ty: number,
+  u: number,
+  scale: number,
+  color: string,
+): void {
+  const gap = u * 0.28
+  const len = u * 1.08
+  const head = u * 0.44
+  const ax = ox + tx * gap
+  const ay = oy + ty * gap
+  const tipx = ax + tx * len
+  const tipy = ay + ty * len
+  const bx = -ty
+  const by = tx
+
+  ctx.save()
+  ctx.strokeStyle = color
+  ctx.fillStyle = color
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  ctx.lineWidth = Math.max(1.35 / scale, u * 0.13)
+  ctx.beginPath()
+  ctx.moveTo(ax, ay)
+  ctx.lineTo(tipx, tipy)
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.moveTo(tipx, tipy)
+  ctx.lineTo(
+    tipx - tx * head + bx * head * 0.46,
+    tipy - ty * head + by * head * 0.46,
+  )
+  ctx.lineTo(
+    tipx - tx * head - bx * head * 0.46,
+    tipy - ty * head - by * head * 0.46,
+  )
+  ctx.closePath()
+  ctx.fill()
+  ctx.restore()
+}
+
+/** Circled stroke-order index, slightly off the stroke body. Digit only via fillText. */
+function drawGuideNumber(
+  ctx: CanvasRenderingContext2D,
+  ox: number,
+  oy: number,
+  tx: number,
+  ty: number,
+  u: number,
+  scale: number,
+  n: number,
+  fill: string,
+  stroke: string,
+): void {
+  // Perp = left of tangent in y-up; offset back + aside so the disc
+  // sits at the start without covering the stroke body.
+  const px = -ty
+  const py = tx
+  const nx = ox - tx * (u * 0.52) + px * (u * 0.78)
+  const ny = oy - ty * (u * 0.52) + py * (u * 0.78)
+  const r = u * 0.5
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(nx, ny, r, 0, Math.PI * 2)
+  ctx.fillStyle = fill
+  ctx.fill()
+  ctx.strokeStyle = stroke
+  ctx.lineWidth = 1.15 / scale
+  ctx.stroke()
+
+  // applyHanziTransform y-flips; counter-scale so the digit is upright.
+  ctx.translate(nx, ny)
+  ctx.scale(1, -1)
+  ctx.font = `700 ${u * 0.72}px system-ui, "Noto Sans SC", sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillStyle = '#fff'
+  ctx.fillText(String(n), 0, 0)
+  ctx.restore()
+}
+
+/**
+ * Draw stroke-path guides + start-number / direction-arrow markers.
+ * Same applyHanziTransform as the grading mask / hanzi-writer (G1).
+ * Markers follow the same fromStroke hide rule as the underlay; numbers
+ * are the true stroke index 1…n (not renumbered among visible strokes).
+ */
 function drawStrokeGuides(
   ctx: CanvasRenderingContext2D,
   cssSize: number,
   dpr: number,
   strokePaths: string[],
+  medians: number[][][],
   fromStroke: number,
   accent: string,
 ): void {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, cssSize, cssSize)
   if (fromStroke >= strokePaths.length) return
+
+  const { u, scale } = markerSizeHanzi(cssSize)
+  const markerFill = hexToRgba(accent, 0.92)
 
   ctx.save()
   applyHanziTransform(ctx, cssSize)
@@ -95,6 +203,22 @@ function drawStrokeGuides(
     } catch {
       // Ignore malformed path segments.
     }
+  }
+
+  for (let i = fromStroke; i < strokePaths.length; i++) {
+    const median = medians[i]
+    if (!median || median.length === 0) continue
+    const origin = median[0]
+    if (!origin || origin.length < 2) continue
+    const ox = origin[0]!
+    const oy = origin[1]!
+    const tangent = earlyMedianTangent(median)
+    const tx = tangent?.x ?? 1
+    const ty = tangent?.y ?? 0
+    if (tangent) {
+      drawGuideArrow(ctx, ox, oy, tx, ty, u, scale, accent)
+    }
+    drawGuideNumber(ctx, ox, oy, tx, ty, u, scale, i + 1, markerFill, accent)
   }
   ctx.restore()
 }
@@ -199,6 +323,7 @@ export default function TracePad({
         cssSize,
         dpr,
         strokeData.strokes,
+        strokeData.medians,
         fromStroke,
         accent,
       )

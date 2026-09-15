@@ -116,6 +116,29 @@ export function mapHanziPointToCss(
   }
 }
 
+/** Skip median segments shorter than this (hanzi 1024 units). */
+const TANGENT_EPS = 1e-3
+
+/**
+ * Unit tangent of the first non-degenerate median segment (hanzi 1024, y-up).
+ * Start of the stroke is median[0]; this walks consecutive points and skips
+ * coincident / zero-length samples. Null if the polyline has no real segment.
+ */
+export function earlyMedianTangent(median: number[][]): Point | null {
+  for (let i = 0; i < median.length - 1; i++) {
+    const a = median[i]
+    const b = median[i + 1]
+    if (!a || !b || a.length < 2 || b.length < 2) continue
+    const dx = b[0]! - a[0]!
+    const dy = b[1]! - a[1]!
+    const len = Math.hypot(dx, dy)
+    if (len > TANGENT_EPS) {
+      return { x: dx / len, y: dy / len }
+    }
+  }
+  return null
+}
+
 /**
  * Map hanzi-writer medians (1024, y-up) into device-pixel canvas coords
  * using the same padding/scale/y-flip as stroke-path guides and the letter mask.
