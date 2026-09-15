@@ -131,25 +131,223 @@ function drawGuideArrow(
   ctx.restore()
 }
 
-/** Circled stroke-order index, slightly off the stroke body. Digit only via fillText. */
-function drawGuideNumber(
-  ctx: CanvasRenderingContext2D,
+/** Nominal circled-number center: back along tangent + left (y-up). */
+function nominalNumberCenter(
   ox: number,
   oy: number,
   tx: number,
   ty: number,
+  u: number,
+): { x: number; y: number } {
+  const px = -ty
+  const py = tx
+  return {
+    x: ox - tx * (u * 0.52) + px * (u * 0.78),
+    y: oy - ty * (u * 0.52) + py * (u * 0.78),
+  }
+}
+
+type GuideMarker = {
+  /** True 0-based stroke index (number shown is index+1). */
+  strokeIndex: number
+  ox: number
+  oy: number
+  tx: number
+  ty: number
+  hasTangent: boolean
+  /** Marker size in hanzi units (may shrink when clustered). */
+  u: number
+  /** Extra offset applied to arrow origin + number disc (hanzi). */
+  offx: number
+  offy: number
+  /** Final number-disc center. */
+  nx: number
+  ny: number
+}
+
+/**
+ * Place stroke-order markers so near-duplicate starts do not stack.
+ *
+ * Strategy (hanzi 1024 units):
+ * 1. Union-find clusters where origins are within ~1.55·u OR nominal
+ *    disc centers are within 1.15·u (near-overlap).
+ * 2. Clustered markers use a slightly smaller disc (0.86·u).
+ * 3. Fan cluster members along the average outward normal (left of
+ *    tangent), with a small extra outward nudge so discs clear the
+ *    stroke body no worse than the unclustered layout.
+ * 4. A few pairwise separation passes finish any residual overlaps.
+ * True stroke indices are preserved; only draw offsets change.
+ */
+function layoutGuideMarkers(
+  medians: number[][][],
+  fromStroke: number,
+  uBase: number,
+): GuideMarker[] {
+  const items: Omit<GuideMarker, 'u' | 'offx' | 'offy' | 'nx' | 'ny'>[] = []
+  for (let i = fromStroke; i < medians.length; i++) {
+    const median = medians[i]
+    if (!median || median.length === 0) continue
+    const origin = median[0]
+    if (!origin || origin.length < 2) continue
+    const tangent = earlyMedianTangent(median)
+    items.push({
+      strokeIndex: i,
+      ox: origin[0]!,
+      oy: origin[1]!,
+      tx: tangent?.x ?? 1,
+      ty: tangent?.y ?? 0,
+      hasTangent: tangent != null,
+    })
+  }
+
+  const n = items.length
+  const markers: GuideMarker[] = items.map((it) => {
+    const c = nominalNumberCenter(it.ox, it.oy, it.tx, it.ty, uBase)
+    return {
+      ...it,
+      u: uBase,
+      offx: 0,
+      offy: 0,
+      nx: c.x,
+      ny: c.y,
+    }
+  })
+  if (n === 0) return markers
+
+  const startNear = Math.max(72, uBase * 1.55)
+  const parent = Array.from({ length: n }, (_, k) => k)
+  const find = (a: number): number => {
+    let x = a
+    while (parent[x] !== x) x = parent[x]!
+    let y = a
+    while (y !== x) {
+      const p = parent[y]!
+      parent[y] = x
+      y = p
+    }
+    return x
+  }
+  const unite = (a: number, b: number) => {
+    const ra = find(a)
+    const rb = find(b)
+    if (ra !== rb) parent[ra] = rb
+  }
+
+  for (let a = 0; a < n; a++) {
+    for (let b = a + 1; b < n; b++) {
+      const A = markers[a]!
+      const B = markers[b]!
+      const originDist = Math.hypot(A.ox - B.ox, A.oy - B.oy)
+      const discDist = Math.hypot(A.nx - B.nx, A.ny - B.ny)
+      if (originDist < startNear || discDist < uBase * 1.15) unite(a, b)
+    }
+  }
+
+  const groups = new Map<number, number[]>()
+  for (let k = 0; k < n; k++) {
+    const root = find(k)
+    const list = groups.get(root)
+    if (list) list.push(k)
+    else groups.set(root, [k])
+  }
+
+  for (const members of groups.values()) {
+    const clustered = members.length > 1
+    const u = clustered ? uBase * 0.86 : uBase
+    for (const k of members) {
+      const m = markers[k]!
+      m.u = u
+      const c = nominalNumberCenter(m.ox, m.oy, m.tx, m.ty, u)
+      m.nx = c.x
+      m.ny = c.y
+      m.offx = 0
+      m.offy = 0
+    }
+    if (!clustered) continue
+
+    members.sort(
+      (a, b) => markers[a]!.strokeIndex - markers[b]!.strokeIndex,
+    )
+    let px = 0
+    let py = 0
+    for (const k of members) {
+      px += -markers[k]!.ty
+      py += markers[k]!.tx
+    }
+    let plen = Math.hypot(px, py)
+    if (plen < 1e-6) {
+      px = 0
+      py = 1
+      plen = 1
+    } else {
+      px /= plen
+      py /= plen
+    }
+    // Side-by-side fan axis ⊥ average outward normal.
+    const ax = -py
+    const ay = px
+    const step = u * 1.2
+    const mid = (members.length - 1) / 2
+    const outExtra = u * 0.18
+
+    for (let j = 0; j < members.length; j++) {
+      const m = markers[members[j]!]!
+      const along = (j - mid) * step
+      m.offx = ax * along + px * outExtra
+      m.offy = ay * along + py * outExtra
+      m.nx += m.offx
+      m.ny += m.offy
+    }
+
+    const minSep = u * 1.15
+    for (let iter = 0; iter < 6; iter++) {
+      for (let a = 0; a < members.length; a++) {
+        for (let b = a + 1; b < members.length; b++) {
+          const A = markers[members[a]!]!
+          const B = markers[members[b]!]!
+          let dx = B.nx - A.nx
+          let dy = B.ny - A.ny
+          let dist = Math.hypot(dx, dy)
+          if (dist < 1e-6) {
+            dx = ax
+            dy = ay
+            if (A.strokeIndex > B.strokeIndex) {
+              dx = -dx
+              dy = -dy
+            }
+            dist = 1
+          }
+          if (dist >= minSep) continue
+          const push = (minSep - dist) / 2
+          const ux = dx / dist
+          const uy = dy / dist
+          A.nx -= ux * push
+          A.ny -= uy * push
+          A.offx -= ux * push
+          A.offy -= uy * push
+          B.nx += ux * push
+          B.ny += uy * push
+          B.offx += ux * push
+          B.offy += uy * push
+        }
+      }
+    }
+  }
+
+  return markers
+}
+
+/** Circled stroke-order index at an explicit disc center. Digit via fillText. */
+function drawGuideNumber(
+  ctx: CanvasRenderingContext2D,
+  nx: number,
+  ny: number,
   u: number,
   scale: number,
   n: number,
   fill: string,
   stroke: string,
 ): void {
-  // Perp = left of tangent in y-up; offset back + aside so the disc
-  // sits at the start without covering the stroke body.
-  const px = -ty
-  const py = tx
-  const nx = ox - tx * (u * 0.52) + px * (u * 0.78)
-  const ny = oy - ty * (u * 0.52) + py * (u * 0.78)
   const r = u * 0.5
 
   ctx.save()
@@ -177,6 +375,7 @@ function drawGuideNumber(
  * Same applyHanziTransform as the grading mask / hanzi-writer (G1).
  * Markers follow the same fromStroke hide rule as the underlay; numbers
  * are the true stroke index 1…n (not renumbered among visible strokes).
+ * Near-duplicate starts are fanned apart (see layoutGuideMarkers).
  */
 function drawStrokeGuides(
   ctx: CanvasRenderingContext2D,
@@ -208,20 +407,23 @@ function drawStrokeGuides(
     }
   }
 
-  for (let i = fromStroke; i < strokePaths.length; i++) {
-    const median = medians[i]
-    if (!median || median.length === 0) continue
-    const origin = median[0]
-    if (!origin || origin.length < 2) continue
-    const ox = origin[0]!
-    const oy = origin[1]!
-    const tangent = earlyMedianTangent(median)
-    const tx = tangent?.x ?? 1
-    const ty = tangent?.y ?? 0
-    if (tangent) {
-      drawGuideArrow(ctx, ox, oy, tx, ty, u, scale, accent)
+  const markers = layoutGuideMarkers(medians, fromStroke, u)
+  for (const m of markers) {
+    const ox = m.ox + m.offx
+    const oy = m.oy + m.offy
+    if (m.hasTangent) {
+      drawGuideArrow(ctx, ox, oy, m.tx, m.ty, m.u, scale, accent)
     }
-    drawGuideNumber(ctx, ox, oy, tx, ty, u, scale, i + 1, markerFill, accent)
+    drawGuideNumber(
+      ctx,
+      m.nx,
+      m.ny,
+      m.u,
+      scale,
+      m.strokeIndex + 1,
+      markerFill,
+      accent,
+    )
   }
   ctx.restore()
 }
