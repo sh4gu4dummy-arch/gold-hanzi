@@ -1,5 +1,6 @@
-/** TracePad three-gate grading (ported for Chinese). */
+/** TracePad stroke-centric grading (median samples + end-of-stroke). */
 
+/** Fat-mask cover threshold — informational only; does NOT gate pass. */
 export const COVER_THRESHOLD = 0.5
 /** Fallback ink width (CSS px). Prefer inkWidthCss() for draw + stamp. */
 export const INK_WIDTH = 18
@@ -7,7 +8,18 @@ export const GRID_COLS = 3
 export const GRID_ROWS = 3
 export const CELL_MIN_SHARE = 0.04
 export const CELL_COVER = 0.32
+/** Per-stroke: fraction of median samples that must be near ink. */
 export const STROKE_COVER = 0.4
+/**
+ * Arc-length t at/above which samples count as end-of-stroke.
+ * Early stop fails unless at least one sample in this band is hit.
+ */
+export const STROKE_END_T = 0.88
+/**
+ * Lateral hit radius as a multiple of inkWidthCss (device px via dpr).
+ * ~0.55× ink = more forgiving than /2.4, without merging neighbors on 的/是.
+ */
+export const STROKE_HIT_INK_FACTOR = 0.55
 
 /** Hanzi-writer / Make-Me-a-Hanzi viewBox size. */
 export const HANZI_VIEWBOX = 1024
@@ -53,21 +65,34 @@ export type LetterMask = {
 }
 
 export type GradeStatus = {
+  /** Fraction of median samples hit across all strokes (UI cover %). */
   cover: number
+  /** Fat-mask cover ≥ COVER_THRESHOLD — informational; does not gate pass. */
   coverReady: boolean
+  /** 3×3 cells ready — informational; does not gate pass. */
   cellsReady: boolean
+  /** Every stroke meets sample-hit fraction + end-band. */
   strokesReady: boolean
+  /** Overall sample fraction low on at least one stroke. */
+  needsFollow: boolean
+  /** End-of-stroke band missed on at least one stroke. */
+  needsFinish: boolean
   pass: boolean
 }
 
-/** Live TracePad copy for failing gates (thresholds unchanged). */
+/** Hit radius in device pixels for median-sample proximity checks. */
+export function strokeHitRadius(dpr: number): number {
+  return Math.max(8, Math.round(inkWidthCss() * STROKE_HIT_INK_FACTOR * dpr))
+}
+
+/** Live TracePad copy — learner language (no regions/cover pass-blocker). */
 export function describeGradeNeeds(status: GradeStatus): string {
+  if (status.pass || status.strokesReady) return 'looking good'
   const parts: string[] = []
-  if (!status.coverReady) parts.push('cover')
-  if (!status.cellsReady) parts.push('regions')
-  if (!status.strokesReady) parts.push('finish all strokes (e.g. hooks)')
-  if (parts.length === 0) return 'all gates ok'
-  return `need ${parts.join(' + ')}`
+  if (status.needsFollow) parts.push('follow the stroke')
+  if (status.needsFinish) parts.push('finish the stroke')
+  if (parts.length === 0) return 'follow the stroke'
+  return parts.join(' · ')
 }
 
 function emptyCells(): number[] {
@@ -531,10 +556,12 @@ function inkNear(
   return false
 }
 
-/** Sample polyline at t = 0.12 .. 0.92 step 0.08 (arc-length parameter). */
-export function sampleStroke(points: Point[]): Point[] {
+export type StrokeSample = Point & { t: number }
+
+/** Sample polyline at t = 0.12 .. 0.96 step 0.08 (arc-length), with t retained. */
+export function sampleStroke(points: Point[]): StrokeSample[] {
   if (points.length === 0) return []
-  if (points.length === 1) return [points[0]!]
+  if (points.length === 1) return [{ ...points[0]!, t: 0.12 }]
 
   const segLens: number[] = []
   let total = 0
@@ -546,37 +573,46 @@ export function sampleStroke(points: Point[]): Point[] {
     segLens.push(len)
     total += len
   }
-  if (total < 1e-6) return [points[0]!]
+  if (total < 1e-6) return [{ ...points[0]!, t: 0.12 }]
 
-  const samples: Point[] = []
-  for (let t = 0.12; t <= 0.92 + 1e-9; t += 0.08) {
-    const target = t * total
+  const pointAt = (t: number): StrokeSample => {
+    const target = Math.min(1, Math.max(0, t)) * total
     let acc = 0
-    let placed = false
     for (let i = 0; i < segLens.length; i++) {
       const len = segLens[i]!
       if (acc + len >= target || i === segLens.length - 1) {
         const local = len < 1e-9 ? 0 : (target - acc) / len
         const a = points[i]!
         const b = points[i + 1]!
-        samples.push({
+        return {
           x: a.x + (b.x - a.x) * local,
           y: a.y + (b.y - a.y) * local,
-        })
-        placed = true
-        break
+          t,
+        }
       }
       acc += len
     }
-    if (!placed) samples.push(points[points.length - 1]!)
+    const last = points[points.length - 1]!
+    return { x: last.x, y: last.y, t }
   }
+
+  const samples: StrokeSample[] = []
+  // Main series 0.12 .. 0.92 step 0.08, then tip 0.96 for end-band coverage.
+  for (let i = 0; ; i++) {
+    const t = Math.round((0.12 + i * 0.08) * 100) / 100
+    if (t > 0.92 + 1e-9) break
+    samples.push(pointAt(t))
+  }
+  samples.push(pointAt(0.96))
   return samples
 }
 
 export function evaluateGrade(mask: LetterMask): GradeStatus {
+  // Fat-mask metrics stay available for diagnostics / stamp bookkeeping but
+  // never block pass (stroke-centric grading).
   const inked = mask.inkBits.reduce((n, v) => n + v, 0)
-  const cover = mask.letterCount > 0 ? inked / mask.letterCount : 0
-  const coverReady = cover >= COVER_THRESHOLD
+  const fatCover = mask.letterCount > 0 ? inked / mask.letterCount : 0
+  const coverReady = fatCover >= COVER_THRESHOLD
 
   let cellsReady = true
   for (let c = 0; c < mask.cellLetter.length; c++) {
@@ -589,26 +625,53 @@ export function evaluateGrade(mask: LetterMask): GradeStatus {
     }
   }
 
-  const rad = Math.max(6, Math.round((inkWidthCss() / 2.4) * mask.dpr))
+  const rad = strokeHitRadius(mask.dpr)
   let strokesReady = true
+  let needsFollow = false
+  let needsFinish = false
+  let totalHits = 0
+  let totalSamples = 0
+
   for (const stroke of mask.mappedStrokes) {
     const samples = sampleStroke(stroke)
     if (samples.length === 0) continue
+
     let hits = 0
+    let endSamples = 0
+    let endHits = 0
     for (const p of samples) {
-      if (inkNear(mask, p.x, p.y, rad)) hits++
+      const hit = inkNear(mask, p.x, p.y, rad)
+      if (hit) hits++
+      if (p.t >= STROKE_END_T - 1e-9) {
+        endSamples++
+        if (hit) endHits++
+      }
     }
-    if (hits / samples.length < STROKE_COVER) {
+    totalHits += hits
+    totalSamples += samples.length
+
+    const fracOk = hits / samples.length >= STROKE_COVER
+    // End band: require ≥1 hit among t≥STROKE_END_T samples (early stop fails).
+    const endOk = endSamples === 0 || endHits >= 1
+    if (!fracOk) {
+      needsFollow = true
       strokesReady = false
-      break
+    }
+    if (!endOk) {
+      needsFinish = true
+      strokesReady = false
     }
   }
+
+  const cover = totalSamples > 0 ? totalHits / totalSamples : 0
 
   return {
     cover,
     coverReady,
     cellsReady,
     strokesReady,
-    pass: coverReady && cellsReady && strokesReady,
+    needsFollow,
+    needsFinish,
+    pass: strokesReady,
   }
 }

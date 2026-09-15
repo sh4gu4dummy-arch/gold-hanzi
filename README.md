@@ -1,6 +1,6 @@
 # 汉字描红 · Chinese Trace
 
-A small handwriting practice app for the 10 most common Simplified Chinese characters. Tap a character, watch a slow stroke-order guide, then freehand-trace until the three-gate grader passes.
+A small handwriting practice app for the 10 most common Simplified Chinese characters. Tap a character, watch a slow stroke-order guide, then freehand-trace until the stroke-centric grader passes.
 
 ## Run
 
@@ -25,17 +25,17 @@ npm run preview -- --host 0.0.0.0 --port 5173
 2. Tap a tile to open practice. **Level count = stroke count** for that character.
 3. **Level 1:** full stroke-path guide stays visible while you write.
 4. **Level k (k>1):** after a slow whole-character demo, strokes 1..(k−1) are hidden (memory); later strokes still show a path guide.
-5. Draw freely on the pad. A level is beaten only when the **app** grades a pass (cover + 3×3 regions + stroke medians) — then it auto-finishes. No Done button.
+5. Draw freely on the pad. A level is beaten only when the **app** grades a pass (per-stroke median samples + end-of-stroke) — then it auto-finishes. No Done button.
 6. Bottom pips select/retry levels; unlocking is sequential (beat L1 to unlock L2). Progress persists in `localStorage`.
 
 ## Grading
 
-Port of Latin TracePad three-gate grading (`_specs/trace-grading.md`):
+Stroke-centric grading (`_specs/trace-grading.md`). Pass = AND of per-stroke median checks:
 
-1. **Cover** ≥ 50% of glyph pixels (stroke-path Path2D mask from vendored strokes JSON)
-2. **Regions** — every 3×3 cell with ≥4% of letter mass ≥32% inked
-3. **Strokes** — every hanzi-writer median ≥40% sample hits
+1. **Sample hit fraction** ≥ 40% along each median (fuzzy lateral radius ≈ 0.55× ink width)
+2. **End-of-stroke** — at least one sample with t ≥ 0.88 must be hit (early stop fails)
 
+Fat-mask cover and 3×3 cells do **not** block pass. UI cover % = % median samples hit.
 Outside-letter ink is drawn for feel but never counted.
 
 ## Font

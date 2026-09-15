@@ -27,7 +27,7 @@ export default function Home() {
         <h1>汉字描红</h1>
         <p className="lede">
           Trace the 10 most common Simplified Chinese characters. Each character
-          has one level per stroke — beat them with the three-gate grader.
+          has one level per stroke — beat them by following each stroke to the end.
         </p>
         <div className="home-wipe-all">
           <button

@@ -318,7 +318,7 @@ h1 {
 }
 
 
-/* Live three-gate feedback — keep visible on short mobile viewports
+/* Live stroke-grade feedback — keep visible on short mobile viewports
    (do not hide with the max-height:750px hint collapse). */
 .grade-meter {
   margin: 0 auto;

@@ -1,17 +1,28 @@
-# TracePad three-gate grading (port for Chinese)
+# TracePad stroke-centric grading (Chinese)
 
-PASS needs ALL three (check after every finger move):
-1. COVER_THRESHOLD = 0.5 — 50% of letter pixels inked (alpha > 24 on stroke-path glyph mask)
-2. 3×3 regions: every cell with ≥ CELL_MIN_SHARE (0.04) of letter pixels must be ≥ CELL_COVER (0.32) inked
-3. Every numbered stroke ≥ STROKE_COVER (0.40) hit — sample t=0.12..0.92 step 0.08; hit if ink within rad = max(6, round((inkWidthCss()/2.4)*dpr))
+PASS is the AND of per-stroke median checks only (checked after every finger move).
+Fat-mask COVER and 3×3 CELL are computed for stamp bookkeeping / diagnostics but
+**must not block pass**.
 
-Outside-letter ink drawn for feel but NEVER counted.
-inkWidthCss() ≈ clamp(16, 4vw, 22) (fallback INK_WIDTH = 18); GRID 3×3.
+## Per-stroke checks (decisive)
 
-Letter mask: rasterize vendored Make-Me-a-Hanzi stroke Path2D fills onto an offscreen canvas (hanzi 1024 viewBox, HANZI_PADDING, y-flip — same transform as TracePad guides / hanzi-writer). letterBits where alpha > 24; GlyphBox from those pixels. Medians map with that same transform into canvas device pixels (not normalized into a fillText GlyphBox).
+For every numbered stroke (hanzi-writer medians, same transform as guides):
 
-For Chinese strokes: use hanzi-writer medians (or stroke paths) as the numbered strokes for gate 3 — same strokesReady logic.
+1. **Sample hit fraction** ≥ `STROKE_COVER` (0.40) — tip-only scribble fails.
+2. **End-of-stroke band** — at least one sample with arc-length `t ≥ STROKE_END_T` (0.88) must be hit — early stop fails.
 
-finish() when all three pass: done=true, onDone(), mark level beaten.
+Samples: `t = 0.12 .. 0.96` step `0.08` (arc-length along the median).
+Hit if ink within `rad = max(8, round(inkWidthCss() * STROKE_HIT_INK_FACTOR * dpr))` with `STROKE_HIT_INK_FACTOR = 0.55` (more lateral fuzzy than the old `/2.4`; still tight enough not to merge neighbors on 的/是).
 
-Do NOT skip gates 2 or 3.
+## UI
+
+- Cover % = % of median samples hit across all strokes (stroke-centric).
+- Failing copy (learner language): **follow the stroke** / **finish the stroke**.
+  No “need regions/cover” pass-blocker wording.
+
+## Still true
+
+- Outside-letter ink is drawn for feel but NEVER counted (`stampInk` only on letter pixels).
+- `inkWidthCss()` ≈ clamp(16, 4vw, 22) (fallback `INK_WIDTH = 18`).
+- Letter mask: rasterize vendored Make-Me-a-Hanzi stroke Path2D fills onto an offscreen canvas (hanzi 1024 viewBox, `HANZI_PADDING`, y-flip + content-center — same transform as TracePad guides / hanzi-writer).
+- `finish()` when stroke checks pass: `done=true`, `onDone()`, mark level beaten.

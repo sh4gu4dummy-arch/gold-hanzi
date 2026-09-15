@@ -832,7 +832,7 @@ export default function TracePad({
   const coverPct =
     liveGrade != null ? Math.round(liveGrade.cover * 100) : 0
   const gradeNeeds =
-    liveGrade != null ? describeGradeNeeds(liveGrade) : 'need cover'
+    liveGrade != null ? describeGradeNeeds(liveGrade) : 'follow the stroke'
 
   const memoryHint =
     level <= 1
@@ -1027,16 +1027,15 @@ export default function TracePad({
       <p className="trace-hint">
         {phase === 'passed' ? (
           <>
-            Nice work — level beaten by the three-gate grader (cover, regions,
-            strokes). Tap a pip to review your drawing, or Replay guide to
-            practice again.
+            Nice work — you followed and finished each stroke. Tap a pip to
+            review your drawing, or Replay guide to practice again.
           </>
         ) : phase === 'demo' ? (
           <>Watch the stroke order, or tap Skip guide to start tracing.</>
         ) : (
           <>
-            {memoryHint} Pass when the app grades cover + regions + strokes —
-            no Done button needed.
+            {memoryHint} Pass when you follow each stroke to the end — no Done
+            button needed.
           </>
         )}
       </p>
