@@ -1,12 +1,23 @@
 /** TracePad three-gate grading (ported for Chinese). */
 
 export const COVER_THRESHOLD = 0.5
-export const INK_WIDTH = 36
+/** Fallback ink width (CSS px). Prefer inkWidthCss() for draw + stamp. */
+export const INK_WIDTH = 18
 export const GRID_COLS = 3
 export const GRID_ROWS = 3
 export const CELL_MIN_SHARE = 0.04
 export const CELL_COVER = 0.32
 export const STROKE_COVER = 0.4
+
+/**
+ * Responsive ink width in CSS px for TracePad stroke + grading stamp.
+ * ≈ clamp(16px, 4vw, 22px) — ~18 on phones, up to ~22 on larger screens.
+ */
+export function inkWidthCss(): number {
+  if (typeof window === 'undefined') return INK_WIDTH
+  const vwBased = window.innerWidth * 0.04
+  return Math.round(Math.min(22, Math.max(16, vwBased)))
+}
 
 /** Handwriting font used for glyph mask + UI. */
 export const HANDWRITING_FONT = 'Ma Shan Zheng'
@@ -213,7 +224,7 @@ export function stampInk(
   mask: LetterMask,
   cssX: number,
   cssY: number,
-  radiusCss = INK_WIDTH / 2,
+  radiusCss = inkWidthCss() / 2,
 ): void {
   const { width, height, dpr, letterBits, inkBits, cellLetter, cellInk } = mask
   const cx = cssX * dpr
@@ -342,7 +353,7 @@ export function evaluateGrade(mask: LetterMask): GradeStatus {
     }
   }
 
-  const rad = Math.max(8, Math.round((INK_WIDTH / 2.4) * mask.dpr))
+  const rad = Math.max(6, Math.round((inkWidthCss() / 2.4) * mask.dpr))
   let strokesReady = true
   for (const stroke of mask.mappedStrokes) {
     const samples = sampleStroke(stroke)

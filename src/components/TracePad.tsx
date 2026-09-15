@@ -3,11 +3,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { STROKE_DATA, charDataLoader } from '../data/strokeData'
 import {
   HANDWRITING_FONT,
-  INK_WIDTH,
   buildLetterMask,
   clearInk,
   ensureHandwritingFont,
   evaluateGrade,
+  inkWidthCss,
   stampInkSegment,
 } from '../lib/grading'
 import type { LetterMask } from '../lib/grading'
@@ -660,9 +660,10 @@ export default function TracePad({
       ctx.lineJoin = 'round'
       ctx.strokeStyle = accent
       ctx.fillStyle = accent
-      ctx.lineWidth = INK_WIDTH
+      const inkW = inkWidthCss()
+      ctx.lineWidth = inkW
       ctx.beginPath()
-      ctx.arc(pt.x, pt.y, INK_WIDTH / 2, 0, Math.PI * 2)
+      ctx.arc(pt.x, pt.y, inkW / 2, 0, Math.PI * 2)
       ctx.fill()
       stampInkSegment(mask, pt.x, pt.y, pt.x, pt.y)
       checkGrade()
@@ -682,7 +683,7 @@ export default function TracePad({
       ctx.lineCap = 'round'
       ctx.lineJoin = 'round'
       ctx.strokeStyle = accent
-      ctx.lineWidth = INK_WIDTH
+      ctx.lineWidth = inkWidthCss()
       ctx.beginPath()
       ctx.moveTo(prev.x, prev.y)
       ctx.lineTo(pt.x, pt.y)

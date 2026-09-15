@@ -27,6 +27,10 @@ body,
   min-height: 100%;
 }
 
+html {
+  height: 100%;
+}
+
 body {
   margin: 0;
   font-family: var(--sans);
@@ -48,10 +52,30 @@ a {
   padding: 24px 16px 48px;
 }
 
+/* Practice: tight mobile portrait, one viewport tall */
+#root:has(.page.practice) {
+  padding: 8px 12px;
+  min-height: 100dvh;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
 .page {
   display: flex;
   flex-direction: column;
   gap: 24px;
+}
+
+.page.practice {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  gap: 8px;
+  overflow: hidden;
 }
 
 .home-header,
@@ -157,7 +181,27 @@ h1 {
 .practice-bar {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.practice .back-link {
+  font-size: 13px;
+}
+
+.practice .practice-meta h1 {
+  font-size: clamp(22px, 5.5vw, 32px);
+  line-height: 1.15;
+}
+
+.practice .practice-glyph {
+  margin-right: 8px;
+}
+
+.practice .practice-meta p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .back-link {
@@ -188,20 +232,21 @@ h1 {
 .stroke-progress {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
   width: min(100%, 520px);
   margin: 0 auto;
+  flex-shrink: 0;
 }
 
 .stroke-progress-label {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--accent-ink);
   letter-spacing: 0.01em;
 }
 
 .stroke-progress-track {
-  height: 6px;
+  height: 4px;
   border-radius: 999px;
   background: var(--accent-soft);
   overflow: hidden;
@@ -222,9 +267,10 @@ h1 {
   margin: 0 auto;
   max-width: 520px;
   text-align: center;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.4;
   color: var(--muted);
+  flex-shrink: 0;
 }
 
 .trace-hint strong {
@@ -248,18 +294,24 @@ h1 {
 .trace-pad {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
 }
 
 .trace-stage {
   --accent: #7c5cbf;
   position: relative;
-  width: min(100%, 520px);
+  /* Pad dominates portrait: square capped by width and ~55dvh */
+  width: min(100%, calc(100vw - 24px), 55dvh);
+  max-width: 520px;
   aspect-ratio: 1;
+  flex: 1 1 auto;
+  max-height: min(55dvh, calc(100vw - 24px));
   margin: 0 auto;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 28px;
+  border-radius: 20px;
   overflow: hidden;
   box-shadow: var(--shadow);
   touch-action: none;
@@ -413,16 +465,17 @@ h1 {
   display: flex;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .btn {
-  min-width: 104px;
-  min-height: 44px;
-  padding: 10px 18px;
+  min-width: 88px;
+  min-height: 40px;
+  padding: 8px 14px;
   border-radius: 999px;
   border: 1px solid transparent;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -483,22 +536,23 @@ h1 {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 8px;
+  gap: 4px;
   width: min(100%, 520px);
   margin: 0 auto;
+  flex-shrink: 0;
 }
 
 .level-pip {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 6px 8px;
+  gap: 2px;
+  padding: 4px 6px;
   border: none;
   background: transparent;
   cursor: pointer;
   color: var(--muted);
-  min-width: 36px;
+  min-width: 28px;
 }
 
 .level-pip:disabled {
@@ -560,6 +614,73 @@ h1 {
 
 .char-level-dot.is-on {
   background: var(--accent);
+}
+
+
+@media (max-height: 750px) {
+  .practice .practice-meta p {
+    display: none;
+  }
+
+  .trace-hint,
+  .next-hint {
+    display: none;
+  }
+
+  .practice-bar {
+    gap: 2px;
+  }
+
+  .practice .practice-meta h1 {
+    font-size: clamp(20px, 5vw, 28px);
+  }
+
+  .stroke-progress-label {
+    font-size: 11px;
+  }
+
+  .level-pip-num {
+    font-size: 10px;
+  }
+
+  .btn {
+    min-width: 80px;
+    min-height: 36px;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  .trace-stage {
+    border-radius: 16px;
+    width: min(100%, calc(100vw - 24px), 52dvh);
+    max-height: min(52dvh, calc(100vw - 24px));
+  }
+
+  .tianzige {
+    inset: 12px;
+  }
+}
+
+@media (min-width: 640px) and (min-height: 800px) {
+  .trace-stage {
+    width: min(100%, 520px);
+    max-height: none;
+  }
+
+  .btn {
+    min-width: 104px;
+    min-height: 44px;
+    padding: 10px 18px;
+    font-size: 15px;
+  }
+
+  .stroke-progress-label {
+    font-size: 14px;
+  }
+
+  .stroke-progress-track {
+    height: 6px;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
