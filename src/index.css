@@ -317,6 +317,31 @@ h1 {
   transition: width 0.25s ease;
 }
 
+
+/* Live three-gate feedback — keep visible on short mobile viewports
+   (do not hide with the max-height:750px hint collapse). */
+.grade-meter {
+  margin: 0 auto;
+  width: min(100%, 520px);
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 600;
+  color: var(--accent-ink);
+  flex-shrink: 0;
+}
+
+.grade-meter-gates {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.grade-meter.is-ok .grade-meter-gates {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+
 .trace-actions-guide {
   flex-wrap: wrap;
 }
@@ -761,6 +786,10 @@ h1 {
   }
 
   .stroke-progress-label {
+    font-size: 11px;
+  }
+
+  .grade-meter {
     font-size: 11px;
   }
 

@@ -5,12 +5,13 @@ import {
   HANDWRITING_FONT,
   buildLetterMask,
   clearInk,
+  describeGradeNeeds,
   ensureHandwritingFont,
   evaluateGrade,
   inkWidthCss,
   stampInkSegment,
 } from '../lib/grading'
-import type { LetterMask } from '../lib/grading'
+import type { GradeStatus, LetterMask } from '../lib/grading'
 import {
   clearLevelInk,
   getCharProgress,
@@ -162,7 +163,7 @@ export default function TracePad({
   const [level, setLevel] = useState(1)
   const [phase, setPhase] = useState<Phase>('loading')
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [gradeHint, setGradeHint] = useState('')
+  const [liveGrade, setLiveGrade] = useState<GradeStatus | null>(null)
 
   levelRef.current = level
 
@@ -258,8 +259,12 @@ export default function TracePad({
     if (!ctx) return
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, ink.width, ink.height)
-    if (maskRef.current) clearInk(maskRef.current)
-    setGradeHint('')
+    if (maskRef.current) {
+      clearInk(maskRef.current)
+      setLiveGrade(evaluateGrade(maskRef.current))
+    } else {
+      setLiveGrade(null)
+    }
   }, [])
 
   const hideWriterHost = useCallback(() => {
@@ -297,7 +302,7 @@ export default function TracePad({
       setLevel(levelNum)
       levelRef.current = levelNum
       setPhase('passed')
-      setGradeHint('')
+      setLiveGrade(null)
       setLoadError(null)
 
       hideWriterHost()
@@ -326,6 +331,8 @@ export default function TracePad({
       paintGuide(levelNum)
       await rebuildMask()
       if (sessionRef.current !== session) return
+      const mask = maskRef.current
+      setLiveGrade(mask ? evaluateGrade(mask) : null)
       setPhase('writing')
     },
     [hideWriterHost, paintGuide, rebuildMask],
@@ -379,19 +386,10 @@ export default function TracePad({
     const mask = maskRef.current
     if (!mask || doneRef.current) return
     const status = evaluateGrade(mask)
+    setLiveGrade(status)
     if (status.pass) {
       finishPass()
-      return
     }
-    const parts: string[] = []
-    if (!status.coverReady) parts.push('cover')
-    if (!status.cellsReady) parts.push('regions')
-    if (!status.strokesReady) parts.push('strokes')
-    setGradeHint(
-      parts.length
-        ? `Keep tracing · need ${parts.join(' + ')}`
-        : '',
-    )
   }, [finishPass])
 
   const runDemoThenWrite = useCallback(
@@ -404,7 +402,7 @@ export default function TracePad({
       clearAutoAdvance()
       doneRef.current = false
       setPhase('demo')
-      setGradeHint('')
+      setLiveGrade(null)
       setLoadError(null)
 
       resizeCanvases()
@@ -728,12 +726,17 @@ export default function TracePad({
   const beatenSet = new Set(progress.beaten)
   const levelLabel =
     levelCount === 0
-      ? 'Loading…'
+      ? 'Levels · Loading…'
       : phase === 'demo'
-        ? `Level ${level} · watch the guide`
+        ? `Levels · Level ${level} · watch the guide`
         : phase === 'passed'
-          ? `Level ${level} cleared!`
-          : `Level ${level} of ${levelCount}`
+          ? `Levels · Level ${level} cleared!`
+          : `Levels · Level ${level} of ${levelCount}`
+
+  const coverPct =
+    liveGrade != null ? Math.round(liveGrade.cover * 100) : 0
+  const gradeNeeds =
+    liveGrade != null ? describeGradeNeeds(liveGrade) : 'need cover'
 
   const memoryHint =
     level <= 1
@@ -763,6 +766,19 @@ export default function TracePad({
           </div>
         )}
       </div>
+
+      {phase === 'writing' && (
+        <div
+          className={`grade-meter${liveGrade?.pass ? ' is-ok' : ''}`}
+          aria-live="polite"
+          aria-label={`This attempt: ${coverPct} percent cover. ${gradeNeeds}`}
+        >
+          <span className="grade-meter-cover">
+            This attempt: {coverPct}% cover
+          </span>
+          <span className="grade-meter-gates"> · {gradeNeeds}</span>
+        </div>
+      )}
 
       <div className="trace-stage-slot">
       <div
@@ -925,12 +941,6 @@ export default function TracePad({
           <>
             {memoryHint} Pass when the app grades cover + regions + strokes —
             no Done button needed.
-            {gradeHint ? (
-              <>
-                {' '}
-                <strong>{gradeHint}</strong>
-              </>
-            ) : null}
           </>
         )}
       </p>

@@ -55,6 +55,16 @@ export type GradeStatus = {
   pass: boolean
 }
 
+/** Live TracePad copy for failing gates (thresholds unchanged). */
+export function describeGradeNeeds(status: GradeStatus): string {
+  const parts: string[] = []
+  if (!status.coverReady) parts.push('cover')
+  if (!status.cellsReady) parts.push('regions')
+  if (!status.strokesReady) parts.push('finish all strokes (e.g. hooks)')
+  if (parts.length === 0) return 'all gates ok'
+  return `need ${parts.join(' + ')}`
+}
+
 function emptyCells(): number[] {
   return Array.from({ length: GRID_COLS * GRID_ROWS }, () => 0)
 }
