@@ -135,3 +135,16 @@ export function markLevelBeaten(
 }
 
 export { STORAGE_KEY }
+
+
+/** Remove one character's progress + ink. Does not touch theme or other keys. */
+export function clearCharProgress(character: string): void {
+  const store = readStore()
+  delete store[character]
+  writeStore(store)
+}
+
+/** Empty the progress store. Does not touch theme or other keys. */
+export function clearAllProgress(): void {
+  writeStore({})
+}
