@@ -9,6 +9,11 @@ export const CELL_MIN_SHARE = 0.04
 export const CELL_COVER = 0.32
 export const STROKE_COVER = 0.4
 
+/** Hanzi-writer / Make-Me-a-Hanzi viewBox size. */
+export const HANZI_VIEWBOX = 1024
+/** Padding around the 1024 viewBox — must match HanziWriter.create({ padding }). */
+export const HANZI_PADDING = 28
+
 /**
  * Responsive ink width in CSS px for TracePad stroke + grading stamp.
  * ≈ clamp(16px, 4vw, 22px) — ~18 on phones, up to ~22 on larger screens.
@@ -19,7 +24,7 @@ export function inkWidthCss(): number {
   return Math.round(Math.min(22, Math.max(16, vwBased)))
 }
 
-/** Handwriting font used for glyph mask + UI. */
+/** Handwriting font for UI titles only (not TracePad mask/guide). */
 export const HANDWRITING_FONT = 'Ma Shan Zheng'
 
 export type GlyphBox = {
@@ -43,7 +48,7 @@ export type LetterMask = {
   glyphBox: GlyphBox
   cellLetter: number[]
   cellInk: number[]
-  /** Median polylines already mapped into canvas/glyph pixel space. */
+  /** Median polylines mapped into device-pixel canvas space (same as letterBits). */
   mappedStrokes: Point[][]
 }
 
@@ -69,7 +74,7 @@ function emptyCells(): number[] {
   return Array.from({ length: GRID_COLS * GRID_ROWS }, () => 0)
 }
 
-/** Wait until the handwriting font is usable for fillText. */
+/** Wait until the handwriting font is usable for UI titles. */
 export async function ensureHandwritingFont(): Promise<void> {
   if (typeof document === 'undefined' || !document.fonts?.load) return
   try {
@@ -80,32 +85,87 @@ export async function ensureHandwritingFont(): Promise<void> {
   }
 }
 
+/** Uniform scale from 1024 viewBox into the padded square (CSS px). */
+export function hanziScale(cssSize: number): number {
+  return (cssSize - 2 * HANZI_PADDING) / HANZI_VIEWBOX
+}
+
 /**
- * Build glyph mask via fillText of the Chinese character on an offscreen canvas.
+ * Apply hanzi-writer view transform in CSS-pixel space (y-up → canvas y-down).
+ * Caller must already have setTransform(dpr, 0, 0, dpr, 0, 0) when drawing to a DPR canvas.
+ */
+export function applyHanziTransform(
+  ctx: CanvasRenderingContext2D,
+  cssSize: number,
+): void {
+  const scale = hanziScale(cssSize)
+  ctx.translate(HANZI_PADDING, cssSize - HANZI_PADDING)
+  ctx.scale(scale, -scale)
+}
+
+/** Map one hanzi (1024, y-up) point into CSS pixels. */
+export function mapHanziPointToCss(
+  x: number,
+  y: number,
+  cssSize: number,
+): Point {
+  const scale = hanziScale(cssSize)
+  return {
+    x: HANZI_PADDING + x * scale,
+    y: cssSize - HANZI_PADDING - y * scale,
+  }
+}
+
+/**
+ * Map hanzi-writer medians (1024, y-up) into device-pixel canvas coords
+ * using the same padding/scale/y-flip as stroke-path guides and the letter mask.
+ */
+export function mapMediansToCanvas(
+  medians: number[][][],
+  cssSize: number,
+  dpr: number,
+): Point[][] {
+  return medians.map((stroke) =>
+    stroke.map((pt) => {
+      const css = mapHanziPointToCss(pt[0]!, pt[1]!, cssSize)
+      return { x: css.x * dpr, y: css.y * dpr }
+    }),
+  )
+}
+
+/**
+ * Build glyph mask by rasterizing Make-Me-a-Hanzi stroke Path2D fills
+ * (same transform as TracePad guides / hanzi-writer). No fillText.
  * letterBits = alpha > 24; GlyphBox from those pixels; 3×3 cellLetter counts.
  */
 export function buildLetterMask(
-  character: string,
+  strokePaths: string[],
   cssWidth: number,
   cssHeight: number,
   dpr: number,
   medians: number[][][],
 ): LetterMask {
-  const width = Math.max(1, Math.round(cssWidth * dpr))
-  const height = Math.max(1, Math.round(cssHeight * dpr))
+  const cssSize = Math.max(1, Math.min(cssWidth, cssHeight))
+  const width = Math.max(1, Math.round(cssSize * dpr))
+  const height = Math.max(1, Math.round(cssSize * dpr))
 
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
   const ctx = canvas.getContext('2d', { willReadFrequently: true })!
-  ctx.setTransform(1, 0, 0, 1, 0, 0)
-  ctx.clearRect(0, 0, width, height)
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  ctx.clearRect(0, 0, cssSize, cssSize)
   ctx.fillStyle = '#000'
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  const fontPx = Math.floor(Math.min(width, height) * 0.72)
-  ctx.font = `${fontPx}px "${HANDWRITING_FONT}", "KaiTi", "STKaiti", serif`
-  ctx.fillText(character, width / 2, height / 2)
+  ctx.save()
+  applyHanziTransform(ctx, cssSize)
+  for (const strokePath of strokePaths) {
+    try {
+      ctx.fill(new Path2D(strokePath))
+    } catch {
+      // Ignore malformed path segments.
+    }
+  }
+  ctx.restore()
 
   const imageData = ctx.getImageData(0, 0, width, height)
   const data = imageData.data
@@ -162,7 +222,7 @@ export function buildLetterMask(
     cellLetter[row * GRID_COLS + col]!++
   }
 
-  const mappedStrokes = mapMediansToGlyphBox(medians, glyphBox)
+  const mappedStrokes = mapMediansToCanvas(medians, cssSize, dpr)
 
   return {
     width,
@@ -176,41 +236,6 @@ export function buildLetterMask(
     cellInk: emptyCells(),
     mappedStrokes,
   }
-}
-
-/** Map hanzi-writer medians (1024, y-up) into the fillText GlyphBox (canvas y-down). */
-export function mapMediansToGlyphBox(
-  medians: number[][][],
-  glyphBox: GlyphBox,
-): Point[][] {
-  let hx0 = Infinity
-  let hy0 = Infinity
-  let hx1 = -Infinity
-  let hy1 = -Infinity
-  for (const stroke of medians) {
-    for (const pt of stroke) {
-      const x = pt[0]!
-      const y = pt[1]!
-      if (x < hx0) hx0 = x
-      if (y < hy0) hy0 = y
-      if (x > hx1) hx1 = x
-      if (y > hy1) hy1 = y
-    }
-  }
-  const hw = Math.max(1e-6, hx1 - hx0)
-  const hh = Math.max(1e-6, hy1 - hy0)
-
-  return medians.map((stroke) =>
-    stroke.map((pt) => {
-      const nx = (pt[0]! - hx0) / hw
-      const ny = (pt[1]! - hy0) / hh
-      return {
-        x: glyphBox.minX + nx * glyphBox.width,
-        // Flip Y: hanzi y-up → canvas y-down within GlyphBox.
-        y: glyphBox.maxY - ny * glyphBox.height,
-      }
-    }),
-  )
 }
 
 function cellIndexForPixel(mask: LetterMask, x: number, y: number): number {

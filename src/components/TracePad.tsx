@@ -2,11 +2,11 @@ import HanziWriter from 'hanzi-writer'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { STROKE_DATA, charDataLoader } from '../data/strokeData'
 import {
-  HANDWRITING_FONT,
+  HANZI_PADDING,
+  applyHanziTransform,
   buildLetterMask,
   clearInk,
   describeGradeNeeds,
-  ensureHandwritingFont,
   evaluateGrade,
   inkWidthCss,
   stampInkSegment,
@@ -27,7 +27,6 @@ export const DEFAULT_ACCENT = '#7C5CBF'
 /** ~2× slower than hanzi-writer defaults (speed 1). */
 const GUIDE_ANIM_SPEED = 0.45
 const GUIDE_HIGHLIGHT_SPEED = 0.5
-const HANZI_PADDING = 28
 const AUTO_ADVANCE_MS = 1000
 
 type TracePadProps = {
@@ -73,7 +72,7 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
-/** Draw stroke-path guides in hanzi-writer view space. */
+/** Draw stroke-path guides (same transform as grading mask / hanzi-writer). */
 function drawStrokeGuides(
   ctx: CanvasRenderingContext2D,
   cssSize: number,
@@ -86,15 +85,9 @@ function drawStrokeGuides(
   ctx.clearRect(0, 0, cssSize, cssSize)
   if (fromStroke >= strokePaths.length) return
 
-  const scale = (cssSize - 2 * HANZI_PADDING) / 1024
   ctx.save()
-  ctx.translate(HANZI_PADDING, cssSize - HANZI_PADDING)
-  ctx.scale(scale, -scale)
+  applyHanziTransform(ctx, cssSize)
   ctx.fillStyle = hexToRgba(accent, 0.22)
-  ctx.strokeStyle = hexToRgba(accent, 0.35)
-  ctx.lineWidth = 8
-  ctx.lineJoin = 'round'
-  ctx.lineCap = 'round'
   for (let i = fromStroke; i < strokePaths.length; i++) {
     try {
       const path = new Path2D(strokePaths[i]!)
@@ -104,24 +97,6 @@ function drawStrokeGuides(
     }
   }
   ctx.restore()
-}
-
-/** Full-character faint guide via fillText (matches grading mask font). */
-function drawFullGlyphGuide(
-  ctx: CanvasRenderingContext2D,
-  cssSize: number,
-  dpr: number,
-  character: string,
-  accent: string,
-): void {
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-  ctx.clearRect(0, 0, cssSize, cssSize)
-  ctx.fillStyle = hexToRgba(accent, 0.2)
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  const fontPx = Math.floor(cssSize * 0.72)
-  ctx.font = `${fontPx}px "${HANDWRITING_FONT}", "KaiTi", "STKaiti", serif`
-  ctx.fillText(character, cssSize / 2, cssSize / 2)
 }
 
 function clearGuideCanvas(guide: HTMLCanvasElement | null): void {
@@ -217,32 +192,27 @@ export default function TracePad({
       const ctx = guide.getContext('2d')
       if (!ctx) return
 
-      // Level 1: full fillText guide. Level k>1: hide strokes 1..(k-1).
-      if (levelNum <= 1) {
-        drawFullGlyphGuide(ctx, cssSize, dpr, character, accent)
-      } else {
-        const fromStroke = levelNum - 1 // hide first (k-1) strokes
-        drawStrokeGuides(
-          ctx,
-          cssSize,
-          dpr,
-          strokeData.strokes,
-          fromStroke,
-          accent,
-        )
-      }
+      // Level 1: all strokes faint. Level k>1: hide strokes 0..(k-2).
+      const fromStroke = levelNum <= 1 ? 0 : levelNum - 1
+      drawStrokeGuides(
+        ctx,
+        cssSize,
+        dpr,
+        strokeData.strokes,
+        fromStroke,
+        accent,
+      )
     },
-    [accent, character, strokeData],
+    [accent, strokeData],
   )
 
   const rebuildMask = useCallback(async () => {
     const wrap = wrapRef.current
     if (!wrap || !strokeData) return null
-    await ensureHandwritingFont()
-    const cssSize = Math.max(1, Math.round(wrap.clientWidth))
+    const cssSize = stageCssSize()
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
     const mask = buildLetterMask(
-      character,
+      strokeData.strokes,
       cssSize,
       cssSize,
       dpr,
@@ -250,7 +220,7 @@ export default function TracePad({
     )
     maskRef.current = mask
     return mask
-  }, [character, strokeData])
+  }, [strokeData])
 
   const clearInkCanvas = useCallback(() => {
     const ink = inkCanvasRef.current
@@ -511,8 +481,6 @@ export default function TracePad({
     writerRef.current = writer
 
     void (async () => {
-      await ensureHandwritingFont()
-      if (sessionRef.current !== session) return
       try {
         await writer.getCharacterData()
       } catch {
