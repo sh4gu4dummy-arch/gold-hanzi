@@ -8,11 +8,12 @@ Fat-mask COVER and 3×3 CELL are computed for stamp bookkeeping / diagnostics bu
 
 For every numbered stroke (hanzi-writer medians, same transform as guides):
 
-1. **Sample hit fraction** ≥ `STROKE_COVER` (0.40) — tip-only scribble fails.
-2. **End-of-stroke band** — at least one sample with arc-length `t ≥ STROKE_END_T` (0.88) must be hit — early stop fails.
+1. **Sample hit fraction** ≥ `STROKE_COVER` (0.58) — tip-only / missing stroke / neighbor-bleed fails.
+2. **End-of-stroke band** — among samples with arc-length `t ≥ STROKE_END_T` (0.90), require ≥50% hits and at least 2 when 2+ end samples exist — unfinished hook/tip fails.
 
-Samples: `t = 0.12 .. 0.96` step `0.08` (arc-length along the median).
-Hit if ink within `rad = max(8, round(inkWidthCss() * STROKE_HIT_INK_FACTOR * dpr))` with `STROKE_HIT_INK_FACTOR = 0.55` (more lateral fuzzy than the old `/2.4`; still tight enough not to merge neighbors on 的/是).
+Samples: `t = 0.12 .. 0.92` step `0.08`, plus tip samples `0.96` and `0.99` (arc-length along the median).
+Hit if ink within `rad = max(8, round(inkWidthCss() * STROKE_HIT_INK_FACTOR * dpr))` with `STROKE_HIT_INK_FACTOR = 0.48` (tighter than 0.55 so neighbor ink is less likely to clear another stroke on 的/是).
+Fat-mask COVER / cells remain informational and **must not** gate pass.
 
 ## UI
 

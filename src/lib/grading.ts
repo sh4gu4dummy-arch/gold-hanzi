@@ -9,17 +9,18 @@ export const GRID_ROWS = 3
 export const CELL_MIN_SHARE = 0.04
 export const CELL_COVER = 0.32
 /** Per-stroke: fraction of median samples that must be near ink. */
-export const STROKE_COVER = 0.4
+export const STROKE_COVER = 0.58
 /**
  * Arc-length t at/above which samples count as end-of-stroke.
- * Early stop fails unless at least one sample in this band is hit.
+ * Early stop / unfinished tip fails unless enough samples in this band are hit
+ * (see evaluateGrade: ≥50% of end-band samples, at least 2 when available).
  */
-export const STROKE_END_T = 0.88
+export const STROKE_END_T = 0.90
 /**
  * Lateral hit radius as a multiple of inkWidthCss (device px via dpr).
- * ~0.55× ink = more forgiving than /2.4, without merging neighbors on 的/是.
+ * Slightly tighter than 0.55 so neighbor ink is less likely to clear another stroke.
  */
-export const STROKE_HIT_INK_FACTOR = 0.55
+export const STROKE_HIT_INK_FACTOR = 0.48
 
 /** Hanzi-writer / Make-Me-a-Hanzi viewBox size. */
 export const HANZI_VIEWBOX = 1024
@@ -321,13 +322,27 @@ export function mapHanziPointToCss(
 
 /** Skip median segments shorter than this (hanzi 1024 units). */
 const TANGENT_EPS = 1e-3
+/** Prefer the longest early segment within this absolute arc (hanzi units). */
+const TANGENT_EARLY_ARC_MIN = 90
+/** …or this fraction of total path length, whichever is larger. */
+const TANGENT_EARLY_ARC_FRAC = 0.28
 
 /**
- * Unit tangent of the first non-degenerate median segment (hanzi 1024, y-up).
- * Start of the stroke is median[0]; this walks consecutive points and skips
- * coincident / zero-length samples. Null if the polyline has no real segment.
+ * Unit tangent for stroke-guide arrows (hanzi 1024, y-up).
+ *
+ * Among median segments whose start arc-length is ≤ max(90, 0.28·total),
+ * pick the longest non-degenerate segment and return its unit direction.
+ * Skips zero-length samples. Null if no usable segment exists.
+ *
+ * Using the longest early segment (not the first) avoids MMAH 撇 medians
+ * whose first short jog goes right before the main body goes left.
  */
 export function earlyMedianTangent(median: number[][]): Point | null {
+  if (!median || median.length < 2) return null
+
+  type Seg = { startArc: number; len: number; dx: number; dy: number }
+  const segs: Seg[] = []
+  let total = 0
   for (let i = 0; i < median.length - 1; i++) {
     const a = median[i]
     const b = median[i + 1]
@@ -335,11 +350,20 @@ export function earlyMedianTangent(median: number[][]): Point | null {
     const dx = b[0]! - a[0]!
     const dy = b[1]! - a[1]!
     const len = Math.hypot(dx, dy)
-    if (len > TANGENT_EPS) {
-      return { x: dx / len, y: dy / len }
-    }
+    segs.push({ startArc: total, len, dx, dy })
+    total += len
   }
-  return null
+  if (total <= TANGENT_EPS) return null
+
+  const window = Math.max(TANGENT_EARLY_ARC_MIN, TANGENT_EARLY_ARC_FRAC * total)
+  let best: Seg | null = null
+  for (const s of segs) {
+    if (s.startArc > window + 1e-9) continue
+    if (s.len <= TANGENT_EPS) continue
+    if (!best || s.len > best.len) best = s
+  }
+  if (!best) return null
+  return { x: best.dx / best.len, y: best.dy / best.len }
 }
 
 /**
@@ -601,13 +625,14 @@ export function sampleStroke(points: Point[]): StrokeSample[] {
   }
 
   const samples: StrokeSample[] = []
-  // Main series 0.12 .. 0.92 step 0.08, then tip 0.96 for end-band coverage.
+  // Main series 0.12 .. 0.92 step 0.08, then tips 0.96 / 0.99 for end-band.
   for (let i = 0; ; i++) {
     const t = Math.round((0.12 + i * 0.08) * 100) / 100
     if (t > 0.92 + 1e-9) break
     samples.push(pointAt(t))
   }
   samples.push(pointAt(0.96))
+  samples.push(pointAt(0.99))
   return samples
 }
 
@@ -660,8 +685,14 @@ export function evaluateGrade(mask: LetterMask): GradeStatus {
     totalSamples += samples.length
 
     const fracOk = hits / samples.length >= STROKE_COVER
-    // End band: require ≥1 hit among t≥STROKE_END_T samples (early stop fails).
-    const endOk = endSamples === 0 || endHits >= 1
+    // End band: need enough tip hits so stopping before a hook/tip fails.
+    // With tip samples at 0.96 + 0.99 and STROKE_END_T=0.90 → typically 3
+    // end samples; require ≥50% and at least 2 when 2+ exist.
+    const endNeed =
+      endSamples === 0
+        ? 0
+        : Math.max(endSamples >= 2 ? 2 : 1, Math.ceil(endSamples * 0.5))
+    const endOk = endSamples === 0 || endHits >= endNeed
     const done = fracOk && endOk
     strokeDone.push(done)
     if (!fracOk) {
