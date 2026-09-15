@@ -85,7 +85,13 @@ function markerSizeHanzi(cssSize: number): { u: number; scale: number } {
   return { u: cssPx / scale, scale }
 }
 
-/** Small chevron along the early median tangent (hanzi y-up). */
+/**
+ * Direction arrow along the early median tangent (hanzi y-up).
+ * Origin sits a short way into the stroke from the (possibly fanned)
+ * start; the tip is further along the same unit tangent. Collision
+ * offsets may move the whole mark, but (tx, ty) is never rotated.
+ * Filled chevron + short shaft so it reads as "draw this way" on phones.
+ */
 function drawGuideArrow(
   ctx: CanvasRenderingContext2D,
   ox: number,
@@ -96,38 +102,40 @@ function drawGuideArrow(
   scale: number,
   color: string,
 ): void {
-  const gap = u * 0.28
-  const len = u * 1.08
-  const head = u * 0.44
-  const ax = ox + tx * gap
-  const ay = oy + ty * gap
+  // Visual size ≈ marker css px (10–14): ~22px long, ~12px-wide head.
+  const inset = u * 0.4
+  const len = u * 1.85
+  const headLen = u * 0.86
+  const headHalf = u * 0.5
+  const shaftHalf = u * 0.155
+
+  const ax = ox + tx * inset
+  const ay = oy + ty * inset
   const tipx = ax + tx * len
   const tipy = ay + ty * len
   const bx = -ty
   const by = tx
+  const neck = Math.max(len - headLen, len * 0.28)
+  const nx = ax + tx * neck
+  const ny = ay + ty * neck
 
   ctx.save()
-  ctx.strokeStyle = color
-  ctx.fillStyle = color
+  ctx.beginPath()
+  ctx.moveTo(ax + bx * shaftHalf, ay + by * shaftHalf)
+  ctx.lineTo(nx + bx * shaftHalf, ny + by * shaftHalf)
+  ctx.lineTo(nx + bx * headHalf, ny + by * headHalf)
+  ctx.lineTo(tipx, tipy)
+  ctx.lineTo(nx - bx * headHalf, ny - by * headHalf)
+  ctx.lineTo(nx - bx * shaftHalf, ny - by * shaftHalf)
+  ctx.lineTo(ax - bx * shaftHalf, ay - by * shaftHalf)
+  ctx.closePath()
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
-  ctx.lineWidth = Math.max(1.35 / scale, u * 0.13)
-  ctx.beginPath()
-  ctx.moveTo(ax, ay)
-  ctx.lineTo(tipx, tipy)
-  ctx.stroke()
-  ctx.beginPath()
-  ctx.moveTo(tipx, tipy)
-  ctx.lineTo(
-    tipx - tx * head + bx * head * 0.46,
-    tipy - ty * head + by * head * 0.46,
-  )
-  ctx.lineTo(
-    tipx - tx * head - bx * head * 0.46,
-    tipy - ty * head - by * head * 0.46,
-  )
-  ctx.closePath()
+  ctx.fillStyle = color
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.82)'
+  ctx.lineWidth = Math.max(2 / scale, u * 0.09)
   ctx.fill()
+  ctx.stroke()
   ctx.restore()
 }
 
@@ -409,6 +417,8 @@ function drawStrokeGuides(
 
   const markers = layoutGuideMarkers(medians, fromStroke, u)
   for (const m of markers) {
+    // Fan may shift the mark; keep the stroke tangent so the arrow
+    // still reads as writing direction, not the fan axis.
     const ox = m.ox + m.offx
     const oy = m.oy + m.offy
     if (m.hasTangent) {
