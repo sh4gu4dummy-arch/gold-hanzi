@@ -90,29 +90,203 @@ export function hanziScale(cssSize: number): number {
   return (cssSize - 2 * HANZI_PADDING) / HANZI_VIEWBOX
 }
 
+const HANZI_CENTER = HANZI_VIEWBOX / 2
+
 /**
- * Apply hanzi-writer view transform in CSS-pixel space (y-up → canvas y-down).
+ * Content-center of a glyph in Make-Me-a-Hanzi y-up space (bbox of medians).
+ * Falls back to viewBox center when medians are empty.
+ */
+export function contentCenterFromMedians(medians: number[][][]): Point {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const stroke of medians) {
+    for (const pt of stroke) {
+      if (!pt || pt.length < 2) continue
+      const x = pt[0]!
+      const y = pt[1]!
+      if (x < minX) minX = x
+      if (y < minY) minY = y
+      if (x > maxX) maxX = x
+      if (y > maxY) maxY = y
+    }
+  }
+  if (!Number.isFinite(minX)) {
+    return { x: HANZI_CENTER, y: HANZI_CENTER }
+  }
+  return { x: (minX + maxX) / 2, y: (minY + maxY) / 2 }
+}
+
+/** Offset that maps content center (cx, cy) onto the 1024 viewBox center. */
+export function contentCenterOffset(center: Point): Point {
+  return { x: HANZI_CENTER - center.x, y: HANZI_CENTER - center.y }
+}
+
+/**
+ * Translate absolute MMAH SVG path coordinates (M/L/Q/C/Z and relatives).
+ * Robust enough for vendored hanzi-writer-data paths.
+ */
+export function translateSvgPath(path: string, dx: number, dy: number): string {
+  if ((dx === 0 && dy === 0) || !path) return path
+
+  const numRe = /[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/g
+  let out = ''
+  let i = 0
+  let cmd = ''
+  let argIndex = 0
+
+  const argsPerCmd = (c: string): number => {
+    switch (c) {
+      case 'Z':
+      case 'z':
+        return 0
+      case 'H':
+      case 'h':
+      case 'V':
+      case 'v':
+        return 1
+      case 'M':
+      case 'm':
+      case 'L':
+      case 'l':
+      case 'T':
+      case 't':
+        return 2
+      case 'S':
+      case 's':
+      case 'Q':
+      case 'q':
+        return 4
+      case 'C':
+      case 'c':
+        return 6
+      case 'A':
+      case 'a':
+        return 7
+      default:
+        return 2
+    }
+  }
+
+  while (i < path.length) {
+    const ch = path[i]!
+    if (/[A-Za-z]/.test(ch)) {
+      cmd = ch
+      argIndex = 0
+      out += ch
+      i++
+      continue
+    }
+    if (ch === ',' || ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') {
+      out += ch
+      i++
+      continue
+    }
+    numRe.lastIndex = i
+    const m = numRe.exec(path)
+    if (!m || m.index !== i) {
+      out += ch
+      i++
+      continue
+    }
+    const raw = m[0]
+    const value = Number(raw)
+    i = m.index + raw.length
+    const arity = argsPerCmd(cmd)
+    let next = value
+    if (arity === 0) {
+      next = value
+    } else if (cmd === 'H') {
+      next = value + dx
+    } else if (cmd === 'h') {
+      next = value // relative
+    } else if (cmd === 'V') {
+      next = value + dy
+    } else if (cmd === 'v') {
+      next = value
+    } else if (cmd === 'A' || cmd === 'a') {
+      const slot = argIndex % 7
+      if (cmd === 'A' && (slot === 5 || slot === 6)) {
+        next = value + (slot === 5 ? dx : dy)
+      } else {
+        next = value
+      }
+    } else {
+      const slot = argIndex % arity
+      const absolute = cmd === cmd.toUpperCase()
+      if (absolute) {
+        next = value + (slot % 2 === 0 ? dx : dy)
+      }
+    }
+    // Preserve integer formatting when possible
+    if (Number.isInteger(next) && !/[.eE]/.test(raw)) {
+      out += String(next)
+    } else {
+      out += String(next)
+    }
+    argIndex++
+    // After M/m pair, subsequent pairs are implicit L/l
+    if ((cmd === 'M' || cmd === 'm') && argIndex === 2) {
+      cmd = cmd === 'M' ? 'L' : 'l'
+      argIndex = 0
+    }
+  }
+  return out
+}
+
+/** Apply content-center offset to strokes + medians (shared with charDataLoader). */
+export function offsetCharacterGeometry(
+  strokes: string[],
+  medians: number[][][],
+  offset: Point,
+): { strokes: string[]; medians: number[][][] } {
+  const { x: dx, y: dy } = offset
+  if (dx === 0 && dy === 0) {
+    return { strokes, medians }
+  }
+  return {
+    strokes: strokes.map((p) => translateSvgPath(p, dx, dy)),
+    medians: medians.map((stroke) =>
+      stroke.map((pt) => [pt[0]! + dx, pt[1]! + dy]),
+    ),
+  }
+}
+
+/**
+ * Apply hanzi view transform in CSS-pixel space (y-up → canvas y-down).
+ * After pad + scale(s,-s), optionally translate(512-cx, 512-cy) so glyph
+ * content center maps to viewBox center → mi-zi-ge pad center.
  * Caller must already have setTransform(dpr, 0, 0, dpr, 0, 0) when drawing to a DPR canvas.
  */
 export function applyHanziTransform(
   ctx: CanvasRenderingContext2D,
   cssSize: number,
+  contentCenter?: Point,
 ): void {
   const scale = hanziScale(cssSize)
+  const cx = contentCenter?.x ?? HANZI_CENTER
+  const cy = contentCenter?.y ?? HANZI_CENTER
   ctx.translate(HANZI_PADDING, cssSize - HANZI_PADDING)
   ctx.scale(scale, -scale)
+  ctx.translate(HANZI_CENTER - cx, HANZI_CENTER - cy)
 }
 
-/** Map one hanzi (1024, y-up) point into CSS pixels. */
+/** Map one hanzi (1024, y-up) point into CSS pixels (same pad/scale/center as applyHanziTransform). */
 export function mapHanziPointToCss(
   x: number,
   y: number,
   cssSize: number,
+  contentCenter?: Point,
 ): Point {
   const scale = hanziScale(cssSize)
+  const cx = contentCenter?.x ?? HANZI_CENTER
+  const cy = contentCenter?.y ?? HANZI_CENTER
+  const hx = x + (HANZI_CENTER - cx)
+  const hy = y + (HANZI_CENTER - cy)
   return {
-    x: HANZI_PADDING + x * scale,
-    y: cssSize - HANZI_PADDING - y * scale,
+    x: HANZI_PADDING + hx * scale,
+    y: cssSize - HANZI_PADDING - hy * scale,
   }
 }
 
@@ -147,10 +321,12 @@ export function mapMediansToCanvas(
   medians: number[][][],
   cssSize: number,
   dpr: number,
+  contentCenter?: Point,
 ): Point[][] {
+  const center = contentCenter ?? contentCenterFromMedians(medians)
   return medians.map((stroke) =>
     stroke.map((pt) => {
-      const css = mapHanziPointToCss(pt[0]!, pt[1]!, cssSize)
+      const css = mapHanziPointToCss(pt[0]!, pt[1]!, cssSize, center)
       return { x: css.x * dpr, y: css.y * dpr }
     }),
   )
@@ -176,11 +352,13 @@ export function buildLetterMask(
   canvas.width = width
   canvas.height = height
   const ctx = canvas.getContext('2d', { willReadFrequently: true })!
+  const contentCenter = contentCenterFromMedians(medians)
+
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, cssSize, cssSize)
   ctx.fillStyle = '#000'
   ctx.save()
-  applyHanziTransform(ctx, cssSize)
+  applyHanziTransform(ctx, cssSize, contentCenter)
   for (const strokePath of strokePaths) {
     try {
       ctx.fill(new Path2D(strokePath))
@@ -245,7 +423,7 @@ export function buildLetterMask(
     cellLetter[row * GRID_COLS + col]!++
   }
 
-  const mappedStrokes = mapMediansToCanvas(medians, cssSize, dpr)
+  const mappedStrokes = mapMediansToCanvas(medians, cssSize, dpr, contentCenter)
 
   return {
     width,

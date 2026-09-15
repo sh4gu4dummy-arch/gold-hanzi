@@ -6,6 +6,7 @@ import {
   applyHanziTransform,
   buildLetterMask,
   clearInk,
+  contentCenterFromMedians,
   describeGradeNeeds,
   earlyMedianTangent,
   evaluateGrade,
@@ -193,8 +194,10 @@ function drawStrokeGuides(
   const { u, scale } = markerSizeHanzi(cssSize)
   const markerFill = hexToRgba(accent, 0.92)
 
+  const contentCenter = contentCenterFromMedians(medians)
+
   ctx.save()
-  applyHanziTransform(ctx, cssSize)
+  applyHanziTransform(ctx, cssSize, contentCenter)
   ctx.fillStyle = hexToRgba(accent, 0.22)
   for (let i = fromStroke; i < strokePaths.length; i++) {
     try {
