@@ -1,4 +1,27 @@
-:root {
+:root,
+[data-theme='dark'] {
+  /* Dark = today's prefers-color-scheme dark look, unchanged. Default when unset. */
+  --accent: #7c5cbf;
+  --accent-soft: color-mix(in srgb, var(--accent) 22%, #1f1c27);
+  --accent-ink: #5b3f96;
+  --bg: #16141c;
+  --surface: #1f1c27;
+  --text: #f3eefc;
+  --muted: #b4adbf;
+  --line: #352f42;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+  --error-bg: #fff5f5;
+  --error-text: #9b2c2c;
+  --radius: 20px;
+  --sans: 'Noto Sans SC', 'Noto Sans CJK SC', system-ui, sans-serif;
+  --hand: 'Ma Shan Zheng', 'KaiTi', 'STKaiti', 'Noto Serif SC', serif;
+  --serif: var(--hand);
+  --body-glow: #2a2140;
+  color-scheme: dark;
+}
+
+[data-theme='light'] {
+  /* Light alternate: soft lavender surfaces, dark text, same accent family. */
   --accent: #7c5cbf;
   --accent-soft: color-mix(in srgb, var(--accent) 14%, white);
   --accent-ink: #5b3f96;
@@ -8,10 +31,9 @@
   --muted: #6b6375;
   --line: #e6e1ef;
   --shadow: 0 10px 30px rgba(80, 52, 130, 0.08);
-  --radius: 20px;
-  --sans: 'Noto Sans SC', 'Noto Sans CJK SC', system-ui, sans-serif;
-  --hand: 'Ma Shan Zheng', 'KaiTi', 'STKaiti', 'Noto Serif SC', serif;
-  --serif: var(--hand);
+  --error-bg: #fff5f5;
+  --error-text: #9b2c2c;
+  --body-glow: #efe8ff;
   color-scheme: light;
 }
 
@@ -36,7 +58,7 @@ body {
   font-family: var(--sans);
   color: var(--text);
   background:
-    radial-gradient(1200px 600px at 50% -10%, #efe8ff 0%, transparent 55%),
+    radial-gradient(1000px 500px at 50% -10%, var(--body-glow) 0%, transparent 55%),
     var(--bg);
   -webkit-font-smoothing: antialiased;
 }
@@ -81,6 +103,42 @@ a {
 .home-header,
 .practice-bar {
   text-align: left;
+}
+
+.home-header-top,
+.practice-bar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.home-header-top {
+  margin-bottom: 8px;
+}
+
+.home-header-top .eyebrow {
+  margin: 0;
+}
+
+.theme-toggle {
+  flex-shrink: 0;
+  min-height: 32px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.theme-toggle:hover,
+.theme-toggle:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  outline: none;
 }
 
 .eyebrow {
@@ -283,8 +341,8 @@ h1 {
   inset: auto 16px 16px;
   padding: 10px 14px;
   border-radius: 12px;
-  background: #fff5f5;
-  color: #9b2c2c;
+  background: var(--error-bg);
+  color: var(--error-text);
   font-size: 14px;
   font-weight: 500;
   text-align: center;
@@ -299,15 +357,28 @@ h1 {
   min-height: 0;
 }
 
+.trace-stage-slot {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Size container so the pad can take min(slotW, slotH). */
+  container-type: size;
+}
+
 .trace-stage {
   --accent: #7c5cbf;
   position: relative;
-  /* Pad dominates portrait: square capped by width and ~55dvh */
-  width: min(100%, calc(100vw - 24px), 55dvh);
-  max-width: 520px;
-  aspect-ratio: 1;
-  flex: 1 1 auto;
-  max-height: min(55dvh, calc(100vw - 24px));
+  /* Strict max square inside the slot — never flex-grow into a tall rectangle. */
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: min(100cqw, 100cqh, 520px);
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
+  height: auto;
+  max-height: 100%;
   margin: 0 auto;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -519,17 +590,19 @@ h1 {
 
 .trace-demo-badge {
   position: absolute;
-  top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 6px 14px;
+  top: 10px;
+  right: 10px;
+  left: auto;
+  transform: none;
+  padding: 5px 10px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--accent) 88%, black);
   color: white;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   pointer-events: none;
   letter-spacing: 0.04em;
+  z-index: 2;
 }
 
 .level-pips {
@@ -652,8 +725,6 @@ h1 {
 
   .trace-stage {
     border-radius: 16px;
-    width: min(100%, calc(100vw - 24px), 52dvh);
-    max-height: min(52dvh, calc(100vw - 24px));
   }
 
   .tianzige {
@@ -663,8 +734,7 @@ h1 {
 
 @media (min-width: 640px) and (min-height: 800px) {
   .trace-stage {
-    width: min(100%, 520px);
-    max-height: none;
+    width: min(100cqw, 100cqh, 520px);
   }
 
   .btn {
@@ -683,21 +753,43 @@ h1 {
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #16141c;
-    --surface: #1f1c27;
-    --text: #f3eefc;
-    --muted: #b4adbf;
-    --line: #352f42;
-    --accent-soft: color-mix(in srgb, var(--accent) 22%, #1f1c27);
-    --shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
-    color-scheme: dark;
-  }
+/* Light: slightly stronger grid wash so tianzige stays readable on white. */
+[data-theme='light'] .tianzige {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--line));
+}
 
-  body {
-    background:
-      radial-gradient(1000px 500px at 50% -10%, #2a2140 0%, transparent 55%),
-      var(--bg);
-  }
+[data-theme='light'] .tianzige-h {
+  background: repeating-linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent) 40%, var(--line)) 0 8px,
+    transparent 8px 14px
+  );
+}
+
+[data-theme='light'] .tianzige-v {
+  background: repeating-linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 40%, var(--line)) 0 8px,
+    transparent 8px 14px
+  );
+}
+
+[data-theme='light'] .tianzige-d1 {
+  background: linear-gradient(
+    to bottom right,
+    transparent calc(50% - 0.5px),
+    color-mix(in srgb, var(--accent) 22%, var(--line)) calc(50% - 0.5px),
+    color-mix(in srgb, var(--accent) 22%, var(--line)) calc(50% + 0.5px),
+    transparent calc(50% + 0.5px)
+  );
+}
+
+[data-theme='light'] .tianzige-d2 {
+  background: linear-gradient(
+    to bottom left,
+    transparent calc(50% - 0.5px),
+    color-mix(in srgb, var(--accent) 22%, var(--line)) calc(50% - 0.5px),
+    color-mix(in srgb, var(--accent) 22%, var(--line)) calc(50% + 0.5px),
+    transparent calc(50% + 0.5px)
+  );
 }

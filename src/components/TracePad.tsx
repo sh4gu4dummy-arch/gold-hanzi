@@ -181,18 +181,27 @@ export default function TracePad({
     [levelCount, onProgressChange],
   )
 
+  const stageCssSize = () => {
+    const wrap = wrapRef.current
+    if (!wrap) return 1
+    const w = wrap.clientWidth
+    const h = wrap.clientHeight || w
+    return Math.max(1, Math.round(Math.min(w, h)))
+  }
+
   const resizeCanvases = useCallback(() => {
     const wrap = wrapRef.current
     const guide = guideCanvasRef.current
     const ink = inkCanvasRef.current
     if (!wrap || !guide || !ink) return
-    const cssSize = Math.max(1, Math.round(wrap.clientWidth))
+    const cssSize = stageCssSize()
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
     for (const canvas of [guide, ink]) {
       canvas.width = Math.round(cssSize * dpr)
       canvas.height = Math.round(cssSize * dpr)
-      canvas.style.width = `${cssSize}px`
-      canvas.style.height = `${cssSize}px`
+      // Fill the square stage; CSS absolute inset centers via host layout.
+      canvas.style.width = '100%'
+      canvas.style.height = '100%'
     }
     return { cssSize, dpr }
   }, [])
@@ -202,7 +211,7 @@ export default function TracePad({
       const guide = guideCanvasRef.current
       const wrap = wrapRef.current
       if (!guide || !wrap || !strokeData) return
-      const cssSize = Math.max(1, Math.round(wrap.clientWidth))
+      const cssSize = stageCssSize()
       const dpr = Math.min(window.devicePixelRatio || 1, 2)
       const ctx = guide.getContext('2d')
       if (!ctx) return
@@ -476,7 +485,7 @@ export default function TracePad({
     host.replaceChildren()
     host.style.opacity = '1'
 
-    const size = Math.max(1, Math.round(wrap.clientWidth))
+    const size = stageCssSize()
     const writer = HanziWriter.create(host, character, {
       width: size,
       height: size,
@@ -544,7 +553,7 @@ export default function TracePad({
     if (!wrap) return
     const observer = new ResizeObserver(() => {
       const writer = writerRef.current
-      const size = Math.max(1, Math.round(wrap.clientWidth))
+      const size = stageCssSize()
       writer?.updateDimensions({
         width: size,
         height: size,
@@ -755,6 +764,7 @@ export default function TracePad({
         )}
       </div>
 
+      <div className="trace-stage-slot">
       <div
         ref={wrapRef}
         className={`trace-stage${phase === 'passed' ? ' is-done' : ''}`}
@@ -805,6 +815,7 @@ export default function TracePad({
             Watch…
           </div>
         )}
+      </div>
       </div>
 
       <div

@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import ThemeToggle from '../components/ThemeToggle'
 import { CHARACTERS } from '../data/characters'
 import { STROKE_DATA } from '../data/strokeData'
 import { beatenCount } from '../lib/progress'
@@ -7,7 +8,10 @@ export default function Home() {
   return (
     <main className="page home">
       <header className="home-header">
-        <p className="eyebrow">描红练习</p>
+        <div className="home-header-top">
+          <p className="eyebrow">描红练习</p>
+          <ThemeToggle />
+        </div>
         <h1>汉字描红</h1>
         <p className="lede">
           Trace the 10 most common Simplified Chinese characters. Each character

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
+import ThemeToggle from '../components/ThemeToggle'
 import TracePad, { DEFAULT_ACCENT } from '../components/TracePad'
 import { CHARACTERS, getCharacter } from '../data/characters'
 import { STROKE_DATA } from '../data/strokeData'
@@ -39,9 +40,12 @@ export default function Practice() {
   return (
     <main className="page practice">
       <header className="practice-bar">
-        <Link className="back-link" to="/">
-          ← Home
-        </Link>
+        <div className="practice-bar-top">
+          <Link className="back-link" to="/">
+            ← Home
+          </Link>
+          <ThemeToggle />
+        </div>
         <div className="practice-meta">
           <h1>
             <span className="practice-glyph">{entry.character}</span>
