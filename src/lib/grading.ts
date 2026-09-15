@@ -65,7 +65,7 @@ export type LetterMask = {
 }
 
 export type GradeStatus = {
-  /** Fraction of median samples hit across all strokes (UI cover %). */
+  /** Fraction of median samples hit across all strokes (diagnostic). */
   cover: number
   /** Fat-mask cover ≥ COVER_THRESHOLD — informational; does not gate pass. */
   coverReady: boolean
@@ -73,6 +73,10 @@ export type GradeStatus = {
   cellsReady: boolean
   /** Every stroke meets sample-hit fraction + end-band. */
   strokesReady: boolean
+  /** Per-stroke pass (hit fraction + end band); length = mappedStrokes. */
+  strokeDone: boolean[]
+  /** Count of strokes with strokeDone[i] === true. */
+  doneCount: number
   /** Overall sample fraction low on at least one stroke. */
   needsFollow: boolean
   /** End-of-stroke band missed on at least one stroke. */
@@ -631,10 +635,15 @@ export function evaluateGrade(mask: LetterMask): GradeStatus {
   let needsFinish = false
   let totalHits = 0
   let totalSamples = 0
+  const strokeDone: boolean[] = []
 
   for (const stroke of mask.mappedStrokes) {
     const samples = sampleStroke(stroke)
-    if (samples.length === 0) continue
+    if (samples.length === 0) {
+      // Vacuous: nothing to follow / finish.
+      strokeDone.push(true)
+      continue
+    }
 
     let hits = 0
     let endSamples = 0
@@ -653,6 +662,8 @@ export function evaluateGrade(mask: LetterMask): GradeStatus {
     const fracOk = hits / samples.length >= STROKE_COVER
     // End band: require ≥1 hit among t≥STROKE_END_T samples (early stop fails).
     const endOk = endSamples === 0 || endHits >= 1
+    const done = fracOk && endOk
+    strokeDone.push(done)
     if (!fracOk) {
       needsFollow = true
       strokesReady = false
@@ -664,12 +675,15 @@ export function evaluateGrade(mask: LetterMask): GradeStatus {
   }
 
   const cover = totalSamples > 0 ? totalHits / totalSamples : 0
+  const doneCount = strokeDone.reduce((n, d) => n + (d ? 1 : 0), 0)
 
   return {
     cover,
     coverReady,
     cellsReady,
     strokesReady,
+    strokeDone,
+    doneCount,
     needsFollow,
     needsFinish,
     pass: strokesReady,

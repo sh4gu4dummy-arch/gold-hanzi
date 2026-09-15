@@ -35,7 +35,7 @@ Stroke-centric grading (`_specs/trace-grading.md`). Pass = AND of per-stroke med
 1. **Sample hit fraction** ≥ 40% along each median (fuzzy lateral radius ≈ 0.55× ink width)
 2. **End-of-stroke** — at least one sample with t ≥ 0.88 must be hit (early stop fails)
 
-Fat-mask cover and 3×3 cells do **not** block pass. UI cover % = % median samples hit.
+Fat-mask cover and 3×3 cells do **not** block pass. Live meter shows **X/Y strokes** completed; passed stroke guides turn green.
 Outside-letter ink is drawn for feel but never counted.
 
 ## Font

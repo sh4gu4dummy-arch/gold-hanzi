@@ -26,6 +26,8 @@ import {
 import type { CharProgress } from '../lib/progress'
 
 export const DEFAULT_ACCENT = '#7C5CBF'
+/** Guide path fill when a stroke passes median grading (hit fraction + end band). */
+export const DONE_STROKE_GREEN = '#22A06B'
 
 /** ~2× slower than hanzi-writer defaults (speed 1). */
 const GUIDE_ANIM_SPEED = 0.45
@@ -393,6 +395,7 @@ function drawStrokeGuides(
   medians: number[][][],
   fromStroke: number,
   accent: string,
+  strokeDone?: boolean[] | null,
 ): void {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, cssSize, cssSize)
@@ -400,15 +403,18 @@ function drawStrokeGuides(
 
   const { u, scale } = markerSizeHanzi(cssSize)
   const markerFill = hexToRgba(accent, 0.92)
+  const faintFill = hexToRgba(accent, 0.22)
+  const doneFill = hexToRgba(DONE_STROKE_GREEN, 0.42)
 
   const contentCenter = contentCenterFromMedians(medians)
 
   ctx.save()
   applyHanziTransform(ctx, cssSize, contentCenter)
-  ctx.fillStyle = hexToRgba(accent, 0.22)
   for (let i = fromStroke; i < strokePaths.length; i++) {
     try {
       const path = new Path2D(strokePaths[i]!)
+      // Passed strokes turn green; incomplete keep faint accent.
+      ctx.fillStyle = strokeDone?.[i] ? doneFill : faintFill
       ctx.fill(path)
     } catch {
       // Ignore malformed path segments.
@@ -421,8 +427,11 @@ function drawStrokeGuides(
     // still reads as writing direction, not the fan axis.
     const ox = m.ox + m.offx
     const oy = m.oy + m.offy
+    const done = !!strokeDone?.[m.strokeIndex]
+    const markColor = done ? DONE_STROKE_GREEN : accent
+    const numFill = done ? hexToRgba(DONE_STROKE_GREEN, 0.92) : markerFill
     if (m.hasTangent) {
-      drawGuideArrow(ctx, ox, oy, m.tx, m.ty, m.u, scale, accent)
+      drawGuideArrow(ctx, ox, oy, m.tx, m.ty, m.u, scale, markColor)
     }
     drawGuideNumber(
       ctx,
@@ -431,8 +440,8 @@ function drawStrokeGuides(
       m.u,
       scale,
       m.strokeIndex + 1,
-      markerFill,
-      accent,
+      numFill,
+      markColor,
     )
   }
   ctx.restore()
@@ -522,7 +531,7 @@ export default function TracePad({
   }, [])
 
   const paintGuide = useCallback(
-    (levelNum: number) => {
+    (levelNum: number, strokeDone?: boolean[] | null) => {
       const guide = guideCanvasRef.current
       const wrap = wrapRef.current
       if (!guide || !wrap || !strokeData) return
@@ -541,6 +550,7 @@ export default function TracePad({
         strokeData.medians,
         fromStroke,
         accent,
+        strokeDone,
       )
     },
     [accent, strokeData],
@@ -571,11 +581,14 @@ export default function TracePad({
     ctx.clearRect(0, 0, ink.width, ink.height)
     if (maskRef.current) {
       clearInk(maskRef.current)
-      setLiveGrade(evaluateGrade(maskRef.current))
+      const status = evaluateGrade(maskRef.current)
+      setLiveGrade(status)
+      paintGuide(levelRef.current, status.strokeDone)
     } else {
       setLiveGrade(null)
+      paintGuide(levelRef.current, null)
     }
-  }, [])
+  }, [paintGuide])
 
   const hideWriterHost = useCallback(() => {
     const host = writerHostRef.current
@@ -616,9 +629,10 @@ export default function TracePad({
       setLoadError(null)
 
       hideWriterHost()
-      clearGuideCanvas(guideCanvasRef.current)
       resizeCanvases()
       clearInkCanvas()
+      // clearInkCanvas may repaint guides for writing; review has no guide underlay.
+      clearGuideCanvas(guideCanvasRef.current)
 
       const dataUrl = getLevelInk(character, levelNum)
       if (dataUrl) {
@@ -638,11 +652,12 @@ export default function TracePad({
   const enterWritingAfterDemo = useCallback(
     async (levelNum: number, session: number) => {
       hideWriterHost()
-      paintGuide(levelNum)
       await rebuildMask()
       if (sessionRef.current !== session) return
       const mask = maskRef.current
-      setLiveGrade(mask ? evaluateGrade(mask) : null)
+      const status = mask ? evaluateGrade(mask) : null
+      setLiveGrade(status)
+      paintGuide(levelNum, status?.strokeDone ?? null)
       setPhase('writing')
     },
     [hideWriterHost, paintGuide, rebuildMask],
@@ -697,10 +712,12 @@ export default function TracePad({
     if (!mask || doneRef.current) return
     const status = evaluateGrade(mask)
     setLiveGrade(status)
+    // Live: green fills for completed strokes + X/Y meter via liveGrade.
+    paintGuide(levelRef.current, status.strokeDone)
     if (status.pass) {
       finishPass()
     }
-  }, [finishPass])
+  }, [finishPass, paintGuide])
 
   const runDemoThenWrite = useCallback(
     async (levelNum: number) => {
@@ -867,7 +884,6 @@ export default function TracePad({
       })
       resizeCanvases()
       if (phase === 'writing' && !doneRef.current) {
-        paintGuide(levelRef.current)
         void rebuildMask().then(() => clearInkCanvas())
       } else if (phase === 'passed') {
         // Keep review ink visible; re-stretch saved snapshot if present.
@@ -1041,8 +1057,9 @@ export default function TracePad({
           ? `Levels · Level ${level} cleared!`
           : `Levels · Level ${level} of ${levelCount}`
 
-  const coverPct =
-    liveGrade != null ? Math.round(liveGrade.cover * 100) : 0
+  const strokeTotal = strokeData?.strokes.length ?? levelCount
+  const strokesDone =
+    liveGrade != null ? liveGrade.doneCount : 0
   const gradeNeeds =
     liveGrade != null ? describeGradeNeeds(liveGrade) : 'follow the stroke'
 
@@ -1079,10 +1096,10 @@ export default function TracePad({
         <div
           className={`grade-meter${liveGrade?.pass ? ' is-ok' : ''}`}
           aria-live="polite"
-          aria-label={`This attempt: ${coverPct} percent cover. ${gradeNeeds}`}
+          aria-label={`${strokesDone} of ${strokeTotal} strokes completed. ${gradeNeeds}`}
         >
-          <span className="grade-meter-cover">
-            This attempt: {coverPct}% cover
+          <span className="grade-meter-progress">
+            {strokesDone}/{strokeTotal} strokes
           </span>
           <span className="grade-meter-gates"> · {gradeNeeds}</span>
         </div>

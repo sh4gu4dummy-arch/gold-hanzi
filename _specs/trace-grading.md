@@ -16,7 +16,8 @@ Hit if ink within `rad = max(8, round(inkWidthCss() * STROKE_HIT_INK_FACTOR * dp
 
 ## UI
 
-- Cover % = % of median samples hit across all strokes (stroke-centric).
+- Progress meter = **X/Y strokes** completed (`doneCount` / stroke count), not cover %.
+- `evaluateGrade` exposes `strokeDone: boolean[]` (+ `doneCount`); TracePad greens each passed stroke’s guide path fill.
 - Failing copy (learner language): **follow the stroke** / **finish the stroke**.
   No “need regions/cover” pass-blocker wording.
 
