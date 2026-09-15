@@ -4,7 +4,7 @@ import ThemeToggle from '../components/ThemeToggle'
 import TracePad, { DEFAULT_ACCENT } from '../components/TracePad'
 import { CHARACTERS, getCharacter } from '../data/characters'
 import { STROKE_DATA } from '../data/strokeData'
-import { getCharProgress } from '../lib/progress'
+import { clearCharProgress, getCharProgress } from '../lib/progress'
 import type { CharProgress } from '../lib/progress'
 
 export default function Practice() {
@@ -15,10 +15,11 @@ export default function Practice() {
     ? (STROKE_DATA[entry.character]?.strokes.length ?? 0)
     : 0
 
-  const [progressByChar, setProgressByChar] = useState<Record<string, CharProgress>>(
-    {},
-  )
+  const [progressByChar, setProgressByChar] = useState<
+    Record<string, CharProgress>
+  >({})
   const [finishedChar, setFinishedChar] = useState<string | null>(null)
+  const [padRevision, setPadRevision] = useState(0)
 
   const progress: CharProgress = entry
     ? (progressByChar[entry.character] ?? getCharProgress(entry.character))
@@ -37,6 +38,20 @@ export default function Practice() {
   const cleared = progress.beaten.length
   const finished = finishedChar === entry.character
 
+  const handleWipeChar = () => {
+    const ok = window.confirm(
+      `Wipe progress for ${entry.character}? This cannot be undone.`,
+    )
+    if (!ok) return
+    clearCharProgress(entry.character)
+    setProgressByChar((prev) => ({
+      ...prev,
+      [entry.character]: { beaten: [], inkByLevel: {} },
+    }))
+    setFinishedChar(null)
+    setPadRevision((n) => n + 1)
+  }
+
   return (
     <main className="page practice">
       <header className="practice-bar">
@@ -44,7 +59,16 @@ export default function Practice() {
           <Link className="back-link" to="/">
             ← Home
           </Link>
-          <ThemeToggle />
+          <div className="practice-bar-actions">
+            <button
+              type="button"
+              className="btn btn-danger btn-compact"
+              onClick={handleWipeChar}
+            >
+              Wipe progress
+            </button>
+            <ThemeToggle />
+          </div>
         </div>
         <div className="practice-meta">
           <h1>
@@ -64,7 +88,7 @@ export default function Practice() {
       </header>
 
       <TracePad
-        key={entry.id}
+        key={`${entry.id}-${padRevision}`}
         character={entry.character}
         accent={DEFAULT_ACCENT}
         onDone={() => setFinishedChar(entry.character)}

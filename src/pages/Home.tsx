@@ -1,18 +1,12 @@
-import { useState, type MouseEvent } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import ThemeToggle from '../components/ThemeToggle'
 import { CHARACTERS } from '../data/characters'
 import { STROKE_DATA } from '../data/strokeData'
-import {
-  beatenCount,
-  clearAllProgress,
-  clearCharProgress,
-} from '../lib/progress'
+import { beatenCount, clearAllProgress } from '../lib/progress'
 
 export default function Home() {
   const [revision, setRevision] = useState(0)
-
-  const bumpRevision = () => setRevision((n) => n + 1)
 
   const handleWipeAll = () => {
     const ok = window.confirm(
@@ -20,21 +14,7 @@ export default function Home() {
     )
     if (!ok) return
     clearAllProgress()
-    bumpRevision()
-  }
-
-  const handleWipeChar = (
-    event: MouseEvent,
-    character: string,
-  ) => {
-    event.preventDefault()
-    event.stopPropagation()
-    const ok = window.confirm(
-      `Wipe progress for ${character}? This cannot be undone.`,
-    )
-    if (!ok) return
-    clearCharProgress(character)
-    bumpRevision()
+    setRevision((n) => n + 1)
   }
 
   return (
@@ -65,7 +45,7 @@ export default function Home() {
           const strokes = STROKE_DATA[entry.character]?.strokes.length ?? 0
           const cleared = beatenCount(entry.character)
           return (
-            <li key={entry.id} className="char-tile-wrap">
+            <li key={entry.id}>
               <Link
                 className="char-tile"
                 to={`/practice/${entry.id}`}
@@ -86,14 +66,6 @@ export default function Home() {
                   </span>
                 )}
               </Link>
-              <button
-                type="button"
-                className="char-wipe"
-                aria-label={`Wipe progress for ${entry.character}`}
-                onClick={(e) => handleWipeChar(e, entry.character)}
-              >
-                Wipe
-              </button>
             </li>
           )
         })}
