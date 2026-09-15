@@ -217,7 +217,7 @@ h1 {
 }
 
 .char-glyph {
-  font-family: var(--serif);
+  font-family: var(--sans);
   font-size: clamp(48px, 10vw, 64px);
   line-height: 1;
   color: var(--text);
