@@ -59,16 +59,7 @@ export default function Practice() {
           <Link className="back-link" to="/">
             ← Home
           </Link>
-          <div className="practice-bar-actions">
-            <button
-              type="button"
-              className="btn btn-danger btn-compact"
-              onClick={handleWipeChar}
-            >
-              Wipe progress
-            </button>
-            <ThemeToggle />
-          </div>
+          <ThemeToggle />
         </div>
         <div className="practice-meta">
           <h1>
@@ -99,6 +90,16 @@ export default function Practice() {
           }))
         }
       />
+
+      <div className="practice-wipe-row">
+        <button
+          type="button"
+          className="link-danger"
+          onClick={handleWipeChar}
+        >
+          Wipe this character’s progress
+        </button>
+      </div>
 
       {finished &&
         next &&

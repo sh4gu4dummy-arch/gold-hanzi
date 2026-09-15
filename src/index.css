@@ -862,3 +862,28 @@ h1 {
   padding: 4px 10px;
   font-size: 12px;
 }
+
+
+.practice-wipe-row {
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: -2px;
+}
+
+.link-danger {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.link-danger:hover,
+.link-danger:focus-visible {
+  color: #c45c5c;
+  outline: none;
+}
