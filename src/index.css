@@ -10,7 +10,8 @@
   --shadow: 0 10px 30px rgba(80, 52, 130, 0.08);
   --radius: 20px;
   --sans: 'Noto Sans SC', 'Noto Sans CJK SC', system-ui, sans-serif;
-  --serif: 'Noto Serif SC', 'Noto Serif CJK SC', 'Songti SC', serif;
+  --hand: 'Ma Shan Zheng', 'KaiTi', 'STKaiti', 'Noto Serif SC', serif;
+  --serif: var(--hand);
   color-scheme: light;
 }
 
@@ -451,6 +452,114 @@ h1 {
   color: var(--accent-ink);
   font-weight: 600;
   text-decoration: none;
+}
+
+
+
+.guide-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.trace-demo-badge {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 88%, black);
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  pointer-events: none;
+  letter-spacing: 0.04em;
+}
+
+.level-pips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  width: min(100%, 520px);
+  margin: 0 auto;
+}
+
+.level-pip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--muted);
+  min-width: 36px;
+}
+
+.level-pip:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.level-pip-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: transparent;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.level-pip.is-beaten .level-pip-dot {
+  background: var(--pip, var(--accent));
+  border-color: var(--pip, var(--accent));
+}
+
+.level-pip.is-active .level-pip-dot {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pip, var(--accent)) 35%, transparent);
+  border-color: var(--pip, var(--accent));
+}
+
+.level-pip.is-locked .level-pip-dot {
+  background: var(--line);
+}
+
+.level-pip-num {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.level-pip.is-active .level-pip-num {
+  color: var(--accent-ink);
+}
+
+.char-levels {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 3px;
+  margin-top: 6px;
+  max-width: 100%;
+}
+
+.char-level-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--line);
+}
+
+.char-level-dot.is-on {
+  background: var(--accent);
 }
 
 @media (prefers-color-scheme: dark) {

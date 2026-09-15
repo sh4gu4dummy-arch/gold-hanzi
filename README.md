@@ -1,6 +1,6 @@
 # 汉字描红 · Chinese Trace
 
-A small handwriting practice app for the 10 most common Simplified Chinese characters. Tap a character, then walk through its strokes in standard order and trace them on a canvas.
+A small handwriting practice app for the 10 most common Simplified Chinese characters. Tap a character, watch a slow stroke-order guide, then freehand-trace until the three-gate grader passes.
 
 ## Run
 
@@ -21,19 +21,30 @@ npm run preview -- --host 0.0.0.0 --port 5173
 
 ## Usage
 
-1. The homepage lists 的 一 是 了 我 不 在 人 有 他.
-2. Tap a tile to open the practice screen.
-3. Practice starts at **stroke 1**. A guide highlights/animates the current stroke (completed strokes stay visible and dimmer via the outline).
-4. Draw the highlighted stroke on the pad (stroke matching is lenient), or tap **Next stroke** to advance. Use **Previous**, **Replay**, and **Clear** as needed.
-5. When you finish the walkthrough, tap **Done**. **Home** returns to the list.
+1. Homepage lists 的 一 是 了 我 不 在 人 有 他 (progress pips show levels beaten).
+2. Tap a tile to open practice. **Level count = stroke count** for that character.
+3. **Level 1:** full handwriting guide stays visible while you write.
+4. **Level k (k>1):** after a slow whole-character demo, strokes 1..(k−1) are hidden (memory); later strokes still show a path guide.
+5. Draw freely on the pad. A level is beaten only when the **app** grades a pass (cover + 3×3 regions + stroke medians) — then it auto-finishes. No Done button.
+6. Bottom pips select/retry levels; unlocking is sequential (beat L1 to unlock L2). Progress persists in `localStorage`.
 
-## Stroke-order guide
+## Grading
 
-Stroke order and animation come from [hanzi-writer](https://chanind.github.io/hanzi-writer/) with character data vendored from [hanzi-writer-data](https://github.com/chanind/hanzi-writer-data) (Make Me a Hanzi). The React `TracePad` wraps Hanzi Writer’s quiz mode for sequential reveal, stroke highlighting, and optional drawn-stroke matching.
+Port of Latin TracePad three-gate grading (`_specs/trace-grading.md`):
+
+1. **Cover** ≥ 50% of glyph pixels (fillText mask, handwriting font)
+2. **Regions** — every 3×3 cell with ≥4% of letter mass ≥32% inked
+3. **Strokes** — every hanzi-writer median ≥40% sample hits
+
+Outside-letter ink is drawn for feel but never counted.
+
+## Font
+
+**Ma Shan Zheng** (Google Fonts) for guides, glyph mask, and character display.
 
 ## Stack
 
-Vite + React + TypeScript + react-router-dom + hanzi-writer. The `TracePad` API is:
+Vite + React + TypeScript + react-router-dom + hanzi-writer (slow demo animation). Freehand canvas + bitmap grading for pass detection. Stroke data vendored from hanzi-writer-data in `src/data/strokes/`.
 
 ```tsx
 <TracePad character="的" accent="#7C5CBF" onDone={() => {}} />
