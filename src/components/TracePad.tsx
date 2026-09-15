@@ -12,7 +12,9 @@ import {
 } from '../lib/grading'
 import type { LetterMask } from '../lib/grading'
 import {
+  clearLevelInk,
   getCharProgress,
+  getLevelInk,
   isLevelBeaten,
   isLevelUnlocked,
   markLevelBeaten,
@@ -25,6 +27,7 @@ export const DEFAULT_ACCENT = '#7C5CBF'
 const GUIDE_ANIM_SPEED = 0.45
 const GUIDE_HIGHLIGHT_SPEED = 0.5
 const HANZI_PADDING = 28
+const AUTO_ADVANCE_MS = 1000
 
 type TracePadProps = {
   character: string
@@ -120,6 +123,14 @@ function drawFullGlyphGuide(
   ctx.fillText(character, cssSize / 2, cssSize / 2)
 }
 
+function clearGuideCanvas(guide: HTMLCanvasElement | null): void {
+  if (!guide) return
+  const gctx = guide.getContext('2d')
+  if (!gctx) return
+  gctx.setTransform(1, 0, 0, 1, 0, 0)
+  gctx.clearRect(0, 0, guide.width, guide.height)
+}
+
 export default function TracePad({
   character,
   accent = DEFAULT_ACCENT,
@@ -138,9 +149,12 @@ export default function TracePad({
   const lastPtRef = useRef<{ x: number; y: number } | null>(null)
   const doneRef = useRef(false)
   const levelRef = useRef(1)
+  const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const levelCountRef = useRef(0)
 
   const strokeData = STROKE_DATA[character]
   const levelCount = strokeData?.strokes.length ?? 0
+  levelCountRef.current = levelCount
 
   const [progress, setProgress] = useState<CharProgress>(() =>
     getCharProgress(character),
@@ -151,6 +165,13 @@ export default function TracePad({
   const [gradeHint, setGradeHint] = useState('')
 
   levelRef.current = level
+
+  const clearAutoAdvance = useCallback(() => {
+    if (autoAdvanceTimerRef.current != null) {
+      clearTimeout(autoAdvanceTimerRef.current)
+      autoAdvanceTimerRef.current = null
+    }
+  }, [])
 
   const notifyProgress = useCallback(
     (next: CharProgress) => {
@@ -232,14 +253,118 @@ export default function TracePad({
     setGradeHint('')
   }, [])
 
+  const hideWriterHost = useCallback(() => {
+    const host = writerHostRef.current
+    if (host) {
+      host.style.opacity = '0'
+      host.style.pointerEvents = 'none'
+    }
+  }, [])
+
+  const restoreInkFromDataUrl = useCallback(
+    (dataUrl: string, session: number) => {
+      const ink = inkCanvasRef.current
+      if (!ink || !dataUrl) return
+      const ctx = ink.getContext('2d')
+      if (!ctx) return
+      const img = new Image()
+      img.onload = () => {
+        if (sessionRef.current !== session) return
+        ctx.setTransform(1, 0, 0, 1, 0, 0)
+        ctx.clearRect(0, 0, ink.width, ink.height)
+        ctx.drawImage(img, 0, 0, ink.width, ink.height)
+      }
+      img.src = dataUrl
+    },
+    [],
+  )
+
+  /** Review a beaten level: saved ink, no guide, phase passed. */
+  const enterReviewMode = useCallback(
+    (levelNum: number) => {
+      clearAutoAdvance()
+      const session = ++sessionRef.current
+      doneRef.current = true
+      setLevel(levelNum)
+      levelRef.current = levelNum
+      setPhase('passed')
+      setGradeHint('')
+      setLoadError(null)
+
+      hideWriterHost()
+      clearGuideCanvas(guideCanvasRef.current)
+      resizeCanvases()
+      clearInkCanvas()
+
+      const dataUrl = getLevelInk(character, levelNum)
+      if (dataUrl) {
+        restoreInkFromDataUrl(dataUrl, session)
+      }
+    },
+    [
+      character,
+      clearAutoAdvance,
+      clearInkCanvas,
+      hideWriterHost,
+      resizeCanvases,
+      restoreInkFromDataUrl,
+    ],
+  )
+
+  const enterWritingAfterDemo = useCallback(
+    async (levelNum: number, session: number) => {
+      hideWriterHost()
+      paintGuide(levelNum)
+      await rebuildMask()
+      if (sessionRef.current !== session) return
+      setPhase('writing')
+    },
+    [hideWriterHost, paintGuide, rebuildMask],
+  )
+
   const finishPass = useCallback(() => {
     if (doneRef.current) return
     doneRef.current = true
     setPhase('passed')
-    const beaten = markLevelBeaten(character, levelRef.current)
+
+    let inkDataUrl: string | undefined
+    try {
+      inkDataUrl = inkCanvasRef.current?.toDataURL('image/png') ?? undefined
+    } catch {
+      inkDataUrl = undefined
+    }
+
+    const beaten = markLevelBeaten(character, levelRef.current, inkDataUrl)
     notifyProgress(beaten)
     onDone?.()
-  }, [character, notifyProgress, onDone])
+
+    clearAutoAdvance()
+    const passedLevel = levelRef.current
+    const total = levelCountRef.current
+    autoAdvanceTimerRef.current = setTimeout(() => {
+      autoAdvanceTimerRef.current = null
+      const nextLevel = passedLevel + 1
+      if (nextLevel > total) return
+      if (!isLevelUnlocked(character, nextLevel)) return
+      // Unbeaten next → demo+write; beaten next → review (rare).
+      if (isLevelBeaten(character, nextLevel)) {
+        enterReviewMode(nextLevel)
+      } else {
+        clearAutoAdvance()
+        sessionRef.current += 1
+        setLevel(nextLevel)
+        levelRef.current = nextLevel
+        doneRef.current = false
+        void runDemoThenWriteRef.current?.(nextLevel)
+      }
+    }, AUTO_ADVANCE_MS)
+  }, [
+    character,
+    clearAutoAdvance,
+    enterReviewMode,
+    notifyProgress,
+    onDone,
+  ])
 
   const checkGrade = useCallback(() => {
     const mask = maskRef.current
@@ -267,6 +392,7 @@ export default function TracePad({
       const host = writerHostRef.current
       if (!writer || !host || !strokeData) return
 
+      clearAutoAdvance()
       doneRef.current = false
       setPhase('demo')
       setGradeHint('')
@@ -274,16 +400,7 @@ export default function TracePad({
 
       resizeCanvases()
       clearInkCanvas()
-
-      // Clear previous guide so it does not sit under the demo.
-      const guide = guideCanvasRef.current
-      if (guide) {
-        const gctx = guide.getContext('2d')
-        if (gctx) {
-          gctx.setTransform(1, 0, 0, 1, 0, 0)
-          gctx.clearRect(0, 0, guide.width, guide.height)
-        }
-      }
+      clearGuideCanvas(guideCanvasRef.current)
 
       // Show writer for demo; hide freehand canvases' interaction feel.
       host.style.opacity = '1'
@@ -295,7 +412,7 @@ export default function TracePad({
         await writer.showOutline()
         await writer.animateCharacter()
       } catch {
-        // Animation may be cancelled by teardown.
+        // Animation may be cancelled by teardown / skip.
       }
       if (sessionRef.current !== session) return
 
@@ -307,21 +424,28 @@ export default function TracePad({
       }
       if (sessionRef.current !== session) return
 
-      host.style.opacity = '0'
-      paintGuide(levelNum)
-      await rebuildMask()
-      if (sessionRef.current !== session) return
-
-      setPhase('writing')
+      await enterWritingAfterDemo(levelNum, session)
     },
-    [clearInkCanvas, paintGuide, rebuildMask, resizeCanvases, strokeData],
+    [
+      clearAutoAdvance,
+      clearInkCanvas,
+      enterWritingAfterDemo,
+      resizeCanvases,
+      strokeData,
+    ],
   )
 
-  // Init / character change: create writer, pick starting level, run demo.
+  // Keep a stable ref so finishPass auto-advance can call the latest runner.
+  const runDemoThenWriteRef = useRef(runDemoThenWrite)
+  runDemoThenWriteRef.current = runDemoThenWrite
+
+  // Init / character change: create writer, pick starting level, run demo or review.
   useEffect(() => {
     const host = writerHostRef.current
     const wrap = wrapRef.current
     if (!host || !wrap) return
+
+    clearAutoAdvance()
 
     if (!strokeData) {
       setLoadError('Could not load stroke-order data for this character.')
@@ -392,10 +516,15 @@ export default function TracePad({
       }
       if (sessionRef.current !== session) return
       resizeCanvases()
-      await runDemoThenWrite(startLevel)
+      if (isLevelBeaten(character, startLevel)) {
+        enterReviewMode(startLevel)
+      } else {
+        await runDemoThenWrite(startLevel)
+      }
     })()
 
     return () => {
+      clearAutoAdvance()
       sessionRef.current += 1
       try {
         writer.cancelQuiz()
@@ -425,29 +554,69 @@ export default function TracePad({
       if (phase === 'writing' && !doneRef.current) {
         paintGuide(levelRef.current)
         void rebuildMask().then(() => clearInkCanvas())
+      } else if (phase === 'passed') {
+        // Keep review ink visible; re-stretch saved snapshot if present.
+        const dataUrl = getLevelInk(character, levelRef.current)
+        if (dataUrl) {
+          restoreInkFromDataUrl(dataUrl, sessionRef.current)
+        }
       }
     })
     observer.observe(wrap)
     return () => observer.disconnect()
-  }, [phase, paintGuide, rebuildMask, resizeCanvases, clearInkCanvas])
+  }, [
+    phase,
+    character,
+    paintGuide,
+    rebuildMask,
+    resizeCanvases,
+    clearInkCanvas,
+    restoreInkFromDataUrl,
+  ])
 
   const selectLevel = (nextLevel: number) => {
     if (!strokeData) return
     if (nextLevel < 1 || nextLevel > levelCount) return
     if (!isLevelUnlocked(character, nextLevel)) return
-    if (nextLevel === level && phase === 'writing') {
-      // Replay current level.
-      void runDemoThenWrite(nextLevel)
+
+    clearAutoAdvance()
+
+    if (isLevelBeaten(character, nextLevel)) {
+      enterReviewMode(nextLevel)
       return
     }
+
+    // Unbeaten unlocked: demo then write (including re-tap current writing).
+    sessionRef.current += 1
     setLevel(nextLevel)
     levelRef.current = nextLevel
     doneRef.current = false
     void runDemoThenWrite(nextLevel)
   }
 
+  const skipGuide = () => {
+    if (phase !== 'demo') return
+    const session = ++sessionRef.current
+    const writer = writerRef.current
+    try {
+      writer?.cancelQuiz()
+      void writer?.hideCharacter()
+      void writer?.hideOutline()
+    } catch {
+      /* ignore */
+    }
+    void enterWritingAfterDemo(levelRef.current, session)
+  }
+
   const replayGuide = () => {
-    if (phase === 'loading') return
+    if (phase === 'loading' || phase === 'demo') return
+    clearAutoAdvance()
+    // Replay on a beaten level: leave review, clear saved ink, re-run demo+write.
+    if (isLevelBeaten(character, level)) {
+      const next = clearLevelInk(character, level)
+      notifyProgress(next)
+    }
+    sessionRef.current += 1
     doneRef.current = false
     void runDemoThenWrite(level)
   }
@@ -455,6 +624,11 @@ export default function TracePad({
   const onClear = () => {
     if (phase !== 'writing' || doneRef.current) return
     clearInkCanvas()
+  }
+
+  const goNextLevel = () => {
+    clearAutoAdvance()
+    selectLevel(level + 1)
   }
 
   // Pointer drawing on ink canvas.
@@ -674,7 +848,7 @@ export default function TracePad({
               title={
                 unlocked
                   ? beaten
-                    ? `Level ${L} (beaten) — tap to replay`
+                    ? `Level ${L} (beaten) — tap to review`
                     : `Level ${L}`
                   : `Beat level ${L - 1} to unlock`
               }
@@ -687,14 +861,25 @@ export default function TracePad({
       </div>
 
       <div className="trace-actions">
-        <button
-          type="button"
-          className="btn btn-ghost"
-          onClick={replayGuide}
-          disabled={phase === 'loading' || phase === 'demo' || !!loadError}
-        >
-          Replay guide
-        </button>
+        {phase === 'demo' ? (
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={skipGuide}
+            disabled={!!loadError}
+          >
+            Skip guide
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={replayGuide}
+            disabled={phase === 'loading' || !!loadError}
+          >
+            Replay guide
+          </button>
+        )}
         <button
           type="button"
           className="btn btn-ghost"
@@ -707,7 +892,7 @@ export default function TracePad({
           <button
             type="button"
             className="btn btn-primary"
-            onClick={() => selectLevel(level + 1)}
+            onClick={goNextLevel}
             disabled={!isLevelUnlocked(character, level + 1)}
           >
             Next level
@@ -719,8 +904,11 @@ export default function TracePad({
         {phase === 'passed' ? (
           <>
             Nice work — level beaten by the three-gate grader (cover, regions,
-            strokes). Tap a pip to retry or continue.
+            strokes). Tap a pip to review your drawing, or Replay guide to
+            practice again.
           </>
+        ) : phase === 'demo' ? (
+          <>Watch the stroke order, or tap Skip guide to start tracing.</>
         ) : (
           <>
             {memoryHint} Pass when the app grades cover + regions + strokes —

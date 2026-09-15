@@ -1,10 +1,12 @@
-/** Persist per-character level progress in localStorage. */
+/** Persist per-character level progress (and optional ink snapshots) in localStorage. */
 
 const STORAGE_KEY = 'chinese-trace:progress:v1'
 
 export type CharProgress = {
   /** 1-indexed levels that have been beaten. */
   beaten: number[]
+  /** dataURL snapshots of ink canvas keyed by level string. */
+  inkByLevel?: Record<string, string>
 }
 
 export type ProgressStore = Record<string, CharProgress>
@@ -29,14 +31,26 @@ function writeStore(store: ProgressStore): void {
   }
 }
 
-export function getCharProgress(character: string): CharProgress {
-  const entry = readStore()[character]
-  if (!entry || !Array.isArray(entry.beaten)) return { beaten: [] }
-  return {
-    beaten: entry.beaten
-      .filter((n) => typeof n === 'number' && n >= 1)
-      .map((n) => Math.floor(n)),
+function normalizeEntry(entry: CharProgress | undefined): CharProgress {
+  if (!entry || !Array.isArray(entry.beaten)) {
+    return { beaten: [], inkByLevel: {} }
   }
+  const beaten = entry.beaten
+    .filter((n) => typeof n === 'number' && n >= 1)
+    .map((n) => Math.floor(n))
+  const inkByLevel: Record<string, string> = {}
+  if (entry.inkByLevel && typeof entry.inkByLevel === 'object') {
+    for (const [k, v] of Object.entries(entry.inkByLevel)) {
+      if (typeof v === 'string' && v.startsWith('data:')) {
+        inkByLevel[k] = v
+      }
+    }
+  }
+  return { beaten, inkByLevel }
+}
+
+export function getCharProgress(character: string): CharProgress {
+  return normalizeEntry(readStore()[character])
 }
 
 export function isLevelBeaten(character: string, level: number): boolean {
@@ -62,13 +76,58 @@ export function beatenCount(character: string): number {
   return getCharProgress(character).beaten.length
 }
 
-export function markLevelBeaten(character: string, level: number): CharProgress {
+export function getLevelInk(character: string, level: number): string | null {
+  const ink = getCharProgress(character).inkByLevel?.[String(level)]
+  return typeof ink === 'string' ? ink : null
+}
+
+export function saveLevelInk(
+  character: string,
+  level: number,
+  dataUrl: string,
+): CharProgress {
   const store = readStore()
-  const current = store[character] ?? { beaten: [] }
+  const current = normalizeEntry(store[character])
+  const inkByLevel = { ...current.inkByLevel, [String(level)]: dataUrl }
+  const next: CharProgress = {
+    beaten: current.beaten,
+    inkByLevel,
+  }
+  store[character] = next
+  writeStore(store)
+  return next
+}
+
+export function clearLevelInk(character: string, level: number): CharProgress {
+  const store = readStore()
+  const current = normalizeEntry(store[character])
+  const inkByLevel = { ...current.inkByLevel }
+  delete inkByLevel[String(level)]
+  const next: CharProgress = {
+    beaten: current.beaten,
+    inkByLevel,
+  }
+  store[character] = next
+  writeStore(store)
+  return next
+}
+
+export function markLevelBeaten(
+  character: string,
+  level: number,
+  inkDataUrl?: string,
+): CharProgress {
+  const store = readStore()
+  const current = normalizeEntry(store[character])
   const beaten = new Set(current.beaten)
   beaten.add(level)
+  const inkByLevel = { ...current.inkByLevel }
+  if (inkDataUrl) {
+    inkByLevel[String(level)] = inkDataUrl
+  }
   const next: CharProgress = {
     beaten: [...beaten].sort((a, b) => a - b),
+    inkByLevel,
   }
   store[character] = next
   writeStore(store)
