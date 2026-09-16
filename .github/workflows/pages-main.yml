@@ -1,9 +1,10 @@
-# GitHub Pages publishes only when `live` moves (same rule as Cloudflare Pages).
-name: GitHub Pages (live)
+# GitHub Pages publishes from `main` on every push to main.
+# Cloudflare Pages production remains separate (promote `live` only).
+name: GitHub Pages (main)
 
 on:
   push:
-    branches: [live]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -12,7 +13,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: github-pages-live
+  group: github-pages-main
   cancel-in-progress: true
 
 jobs:
@@ -25,7 +26,6 @@ jobs:
           node-version: '20'
           cache: npm
       - run: npm ci
-      # Project site lives at /gold-hanzi/ — override Vite base for this host only.
       - run: npx vite build --base=/gold-hanzi/
       - name: SPA fallback for client routes
         run: cp dist/index.html dist/404.html
