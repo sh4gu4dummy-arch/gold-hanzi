@@ -6,6 +6,9 @@ export default defineConfig({
   // Cloudflare Pages serves at site root (e.g. gold-hanzi.pages.dev).
   base: './',
   plugins: [react()],
+  server: {
+    allowedHosts: true,
+  },
   preview: {
     allowedHosts: true,
   },
