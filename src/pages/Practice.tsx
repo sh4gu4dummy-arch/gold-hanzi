@@ -6,6 +6,7 @@ import { CHARACTERS, getCharacter } from '../data/characters'
 import { STROKE_DATA } from '../data/strokeData'
 import { clearCharProgress, getCharProgress } from '../lib/progress'
 import type { CharProgress } from '../lib/progress'
+import { APP_VERSION } from '../version'
 
 export default function Practice() {
   const { id = '' } = useParams()
@@ -112,6 +113,10 @@ export default function Practice() {
             </Link>
           </p>
         )}
+
+      <p className="app-version" aria-label={`App version ${APP_VERSION}`}>
+        {APP_VERSION}
+      </p>
     </main>
   )
 }

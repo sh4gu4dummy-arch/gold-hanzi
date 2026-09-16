@@ -4,6 +4,7 @@ import ThemeToggle from '../components/ThemeToggle'
 import { CHARACTERS } from '../data/characters'
 import { STROKE_DATA } from '../data/strokeData'
 import { beatenCount, clearAllProgress } from '../lib/progress'
+import { APP_VERSION } from '../version'
 
 export default function Home() {
   const [revision, setRevision] = useState(0)
@@ -70,6 +71,10 @@ export default function Home() {
           )
         })}
       </ol>
+
+      <p className="app-version" aria-label={`App version ${APP_VERSION}`}>
+        {APP_VERSION}
+      </p>
     </main>
   )
 }

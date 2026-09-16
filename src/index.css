@@ -887,3 +887,13 @@ h1 {
   color: #c45c5c;
   outline: none;
 }
+
+.app-version {
+  margin: 18px 0 0;
+  text-align: center;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: color-mix(in srgb, var(--muted, #887) 85%, transparent);
+  user-select: none;
+}
