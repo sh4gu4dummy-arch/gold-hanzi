@@ -28,6 +28,8 @@ import type { CharProgress } from '../lib/progress'
 export const DEFAULT_ACCENT = '#7C5CBF'
 /** Guide path fill when a stroke passes median grading (hit fraction + end band). */
 export const DONE_STROKE_GREEN = '#22A06B'
+/** Solid ink recolor for passed strokes (darker than the faint guide green). */
+export const DONE_STROKE_INK_GREEN = '#167A52'
 
 /** ~2× slower than hanzi-writer defaults (speed 1). */
 const GUIDE_ANIM_SPEED = 0.45
@@ -447,6 +449,55 @@ function drawStrokeGuides(
   ctx.restore()
 }
 
+/**
+ * Recolor existing ink along completed stroke medians to dark green.
+ * Uses source-atop so only pixels the learner already drew are tinted —
+ * purple ink near a passed stroke becomes green; blank canvas stays blank.
+ */
+function recolorCompletedInk(
+  ink: HTMLCanvasElement,
+  mask: LetterMask,
+  strokeDone: boolean[] | null | undefined,
+): void {
+  if (!strokeDone || strokeDone.length === 0) return
+  const ctx = ink.getContext('2d')
+  if (!ctx) return
+  const dpr = mask.dpr
+  const lineW = Math.max(2, inkWidthCss() * dpr * 1.12)
+
+  ctx.save()
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  ctx.globalCompositeOperation = 'source-atop'
+  ctx.strokeStyle = DONE_STROKE_INK_GREEN
+  ctx.fillStyle = DONE_STROKE_INK_GREEN
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  ctx.lineWidth = lineW
+
+  for (let i = 0; i < strokeDone.length; i++) {
+    if (!strokeDone[i]) continue
+    const pts = mask.mappedStrokes[i]
+    if (!pts || pts.length === 0) continue
+    ctx.beginPath()
+    ctx.moveTo(pts[0]!.x, pts[0]!.y)
+    for (let j = 1; j < pts.length; j++) {
+      ctx.lineTo(pts[j]!.x, pts[j]!.y)
+    }
+    ctx.stroke()
+    // Dot the ends so short hooks still pick up ink.
+    const r = lineW / 2
+    ctx.beginPath()
+    ctx.arc(pts[0]!.x, pts[0]!.y, r, 0, Math.PI * 2)
+    ctx.fill()
+    const last = pts[pts.length - 1]!
+    ctx.beginPath()
+    ctx.arc(last.x, last.y, r, 0, Math.PI * 2)
+    ctx.fill()
+  }
+
+  ctx.restore()
+}
+
 function clearGuideCanvas(guide: HTMLCanvasElement | null): void {
   if (!guide) return
   const gctx = guide.getContext('2d')
@@ -714,6 +765,9 @@ export default function TracePad({
     setLiveGrade(status)
     // Live: green fills for completed strokes + X/Y meter via liveGrade.
     paintGuide(levelRef.current, status.strokeDone)
+    // Dark purple ink near passed strokes → darker green (guide already light green).
+    const ink = inkCanvasRef.current
+    if (ink) recolorCompletedInk(ink, mask, status.strokeDone)
     if (status.pass) {
       finishPass()
     }
