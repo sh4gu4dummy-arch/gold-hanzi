@@ -13,6 +13,7 @@ import {
   hanziScale,
   inkWidthCss,
   stampInkSegment,
+  strokeHitRadius,
 } from '../lib/grading'
 import type { GradeStatus, LetterMask } from '../lib/grading'
 import {
@@ -449,10 +450,27 @@ function drawStrokeGuides(
   ctx.restore()
 }
 
+function parseHexRgb(hex: string): { r: number; g: number; b: number } {
+  const raw = hex.replace('#', '')
+  const full =
+    raw.length === 3
+      ? raw
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : raw
+  const num = Number.parseInt(full, 16)
+  return {
+    r: (num >> 16) & 0xff,
+    g: (num >> 8) & 0xff,
+    b: num & 0xff,
+  }
+}
+
 /**
- * Recolor existing ink along completed stroke medians to dark green.
- * Uses source-atop so only pixels the learner already drew are tinted —
- * purple ink near a passed stroke becomes green; blank canvas stays blank.
+ * Replace learner ink near completed stroke medians with dark green.
+ * Rewrites pixel RGB (keeps alpha) so purple does not remain under/beside
+ * a thin green overlay.
  */
 function recolorCompletedInk(
   ink: HTMLCanvasElement,
@@ -462,40 +480,63 @@ function recolorCompletedInk(
   if (!strokeDone || strokeDone.length === 0) return
   const ctx = ink.getContext('2d')
   if (!ctx) return
-  const dpr = mask.dpr
-  const lineW = Math.max(2, inkWidthCss() * dpr * 1.12)
 
-  ctx.save()
-  ctx.setTransform(1, 0, 0, 1, 0, 0)
-  ctx.globalCompositeOperation = 'source-atop'
-  ctx.strokeStyle = DONE_STROKE_INK_GREEN
-  ctx.fillStyle = DONE_STROKE_INK_GREEN
-  ctx.lineCap = 'round'
-  ctx.lineJoin = 'round'
-  ctx.lineWidth = lineW
+  const w = ink.width
+  const h = ink.height
+  if (w < 1 || h < 1) return
+
+  // Cover the full pen width plus grading side fuzz so messy ink turns green.
+  const rad = Math.max(strokeHitRadius(mask.dpr), inkWidthCss() * mask.dpr * 0.85)
+  const rad2 = rad * rad
+  const green = parseHexRgb(DONE_STROKE_INK_GREEN)
+
+  const image = ctx.getImageData(0, 0, w, h)
+  const data = image.data
+  const marked = new Uint8Array(w * h)
 
   for (let i = 0; i < strokeDone.length; i++) {
     if (!strokeDone[i]) continue
     const pts = mask.mappedStrokes[i]
     if (!pts || pts.length === 0) continue
-    ctx.beginPath()
-    ctx.moveTo(pts[0]!.x, pts[0]!.y)
-    for (let j = 1; j < pts.length; j++) {
-      ctx.lineTo(pts[j]!.x, pts[j]!.y)
+
+    // Sample densely along each median segment.
+    for (let s = 0; s < pts.length; s++) {
+      const a = pts[s]!
+      const b = pts[Math.min(s + 1, pts.length - 1)]!
+      const dist = Math.hypot(b.x - a.x, b.y - a.y)
+      const steps = Math.max(1, Math.ceil(dist / Math.max(1, rad * 0.35)))
+      for (let t = 0; t <= steps; t++) {
+        const f = t / steps
+        const cx = a.x + (b.x - a.x) * f
+        const cy = a.y + (b.y - a.y) * f
+        const x0 = Math.max(0, Math.floor(cx - rad))
+        const x1 = Math.min(w - 1, Math.ceil(cx + rad))
+        const y0 = Math.max(0, Math.floor(cy - rad))
+        const y1 = Math.min(h - 1, Math.ceil(cy + rad))
+        for (let y = y0; y <= y1; y++) {
+          for (let x = x0; x <= x1; x++) {
+            const dx = x + 0.5 - cx
+            const dy = y + 0.5 - cy
+            if (dx * dx + dy * dy > rad2) continue
+            marked[y * w + x] = 1
+          }
+        }
+      }
     }
-    ctx.stroke()
-    // Dot the ends so short hooks still pick up ink.
-    const r = lineW / 2
-    ctx.beginPath()
-    ctx.arc(pts[0]!.x, pts[0]!.y, r, 0, Math.PI * 2)
-    ctx.fill()
-    const last = pts[pts.length - 1]!
-    ctx.beginPath()
-    ctx.arc(last.x, last.y, r, 0, Math.PI * 2)
-    ctx.fill()
   }
 
-  ctx.restore()
+  for (let i = 0; i < marked.length; i++) {
+    if (!marked[i]) continue
+    const o = i * 4
+    const a = data[o + 3]!
+    if (a < 12) continue // leave empty canvas alone
+    data[o] = green.r
+    data[o + 1] = green.g
+    data[o + 2] = green.b
+    // keep alpha
+  }
+
+  ctx.putImageData(image, 0, 0)
 }
 
 function clearGuideCanvas(guide: HTMLCanvasElement | null): void {
