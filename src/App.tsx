@@ -2,12 +2,19 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import Home from './pages/Home'
 import Practice from './pages/Practice'
 
-/** Strip trailing slash; Vite BASE_URL is `/gold-hanzi/` on Pages. */
-const basename = import.meta.env.BASE_URL.replace(/\/$/, '') || '/'
+/**
+ * Vite `base: './'` → BASE_URL is `./` (relative). React Router wants no
+ * basename at site root. Only set basename for absolute subpath bases.
+ */
+function routerBasename(): string | undefined {
+  const raw = (import.meta.env.BASE_URL || '/').replace(/\/$/, '') || '/'
+  if (raw === '/' || raw === '.' || raw === '') return undefined
+  return raw
+}
 
 export default function App() {
   return (
-    <BrowserRouter basename={basename === '/' ? undefined : basename}>
+    <BrowserRouter basename={routerBasename()}>
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/practice/:id" element={<Practice />} />
