@@ -91,6 +91,10 @@ a {
   gap: 24px;
 }
 
+.page.home {
+  gap: 14px;
+}
+
 .page.practice {
   flex: 1;
   min-height: 0;
@@ -114,7 +118,7 @@ a {
 }
 
 .home-header-top {
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .home-header-top .eyebrow {
@@ -610,7 +614,7 @@ h1 {
 }
 
 .home-wipe-all {
-  margin-top: 12px;
+  margin-top: 6px;
 }
 
 .home-wipe-all .btn {
@@ -888,12 +892,38 @@ h1 {
   outline: none;
 }
 
+.home-title-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  min-width: 0;
+}
+
+.page.home h1 {
+  font-size: clamp(26px, 5.5vw, 34px);
+  letter-spacing: -0.02em;
+}
+
+.home-lede {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.practice-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .app-version {
-  margin: 18px 0 0;
-  text-align: center;
+  margin: 0;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;
-  color: color-mix(in srgb, var(--muted, #887) 85%, transparent);
+  color: color-mix(in srgb, var(--muted, #887) 90%, transparent);
   user-select: none;
+  white-space: nowrap;
 }

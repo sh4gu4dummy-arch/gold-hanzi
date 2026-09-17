@@ -60,7 +60,12 @@ export default function Practice() {
           <Link className="back-link" to="/">
             ← Home
           </Link>
-          <ThemeToggle />
+          <div className="practice-bar-actions">
+            <span className="app-version" aria-label={`App version ${APP_VERSION}`}>
+              {APP_VERSION}
+            </span>
+            <ThemeToggle />
+          </div>
         </div>
         <div className="practice-meta">
           <h1>
@@ -113,10 +118,6 @@ export default function Practice() {
             </Link>
           </p>
         )}
-
-      <p className="app-version" aria-label={`App version ${APP_VERSION}`}>
-        {APP_VERSION}
-      </p>
     </main>
   )
 }

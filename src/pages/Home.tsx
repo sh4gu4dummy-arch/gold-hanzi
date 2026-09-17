@@ -22,18 +22,21 @@ export default function Home() {
     <main className="page home">
       <header className="home-header">
         <div className="home-header-top">
-          <p className="eyebrow">描红练习</p>
+          <div className="home-title-row">
+            <h1>Gold Tracing</h1>
+            <span className="app-version" aria-label={`App version ${APP_VERSION}`}>
+              {APP_VERSION}
+            </span>
+          </div>
           <ThemeToggle />
         </div>
-        <h1>汉字描红</h1>
-        <p className="lede">
-          Trace the 10 most common Simplified Chinese characters. Each character
-          has one level per stroke — beat them by following each stroke to the end.
+        <p className="lede home-lede">
+          Trace 10 common Simplified characters — one level per stroke.
         </p>
         <div className="home-wipe-all">
           <button
             type="button"
-            className="btn btn-danger"
+            className="link-danger"
             onClick={handleWipeAll}
           >
             Wipe all progress
@@ -71,10 +74,6 @@ export default function Home() {
           )
         })}
       </ol>
-
-      <p className="app-version" aria-label={`App version ${APP_VERSION}`}>
-        {APP_VERSION}
-      </p>
     </main>
   )
 }
