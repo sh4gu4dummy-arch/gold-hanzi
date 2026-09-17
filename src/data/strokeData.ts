@@ -1,13 +1,23 @@
 import bu from './strokes/bu.json'
+import da from './strokes/da.json'
 import de from './strokes/de.json'
+import ge from './strokes/ge.json'
+import guo from './strokes/guo.json'
+import he from './strokes/he.json'
+import lai from './strokes/lai.json'
 import le from './strokes/le.json'
+import men from './strokes/men.json'
 import ren from './strokes/ren.json'
+import shang from './strokes/shang.json'
 import shi from './strokes/shi.json'
 import ta from './strokes/ta.json'
+import wei from './strokes/wei.json'
 import wo from './strokes/wo.json'
 import yi from './strokes/yi.json'
 import you from './strokes/you.json'
 import zai from './strokes/zai.json'
+import zhe from './strokes/zhe.json'
+import zhong from './strokes/zhong.json'
 import {
   contentCenterFromMedians,
   contentCenterOffset,
@@ -33,6 +43,16 @@ export const STROKE_DATA: Record<string, StrokeCharacterData> = {
   人: ren,
   有: you,
   他: ta,
+  这: zhe,
+  个: ge,
+  们: men,
+  中: zhong,
+  来: lai,
+  上: shang,
+  大: da,
+  为: wei,
+  和: he,
+  国: guo,
 }
 
 /**

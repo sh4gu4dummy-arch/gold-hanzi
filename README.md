@@ -1,6 +1,6 @@
 # 汉字描红 · Chinese Trace
 
-A small handwriting practice app for the 10 most common Simplified Chinese characters. Tap a character, watch a slow stroke-order guide, then freehand-trace until the stroke-centric grader passes.
+A small handwriting practice app for the 20 most common Simplified Chinese characters. Tap a character, watch a slow stroke-order guide, then freehand-trace until the stroke-centric grader passes.
 
 **App Builder / Grok Bot handoff:** [GROK_APP_BUILDER.md](./GROK_APP_BUILDER.md) — notes from Grok App Builder for the other devs. Newest entry first.
 

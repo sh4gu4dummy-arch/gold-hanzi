@@ -49,6 +49,15 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+
+### 2026-09-17 — Next 10 most-common characters (v0.007)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `src/data/characters.ts`, `src/data/strokeData.ts`, `src/data/strokes/*.json`, `src/version.ts`, `src/pages/Home.tsx`
+
+Added Jun Da ranks 11–20 after the original top 10: 这 个 们 中 来 上 大 为 和 国. Stroke JSON from `hanzi-writer-data`. Version `v0.007`.
+
+
 ### 2026-09-16 — No green surplus ink after a stroke passes (v0.006)
 
 **Who:** Grok App Builder  

@@ -31,7 +31,7 @@ export default function Home() {
           <ThemeToggle />
         </div>
         <p className="lede home-lede">
-          Trace 10 common Simplified characters — one level per stroke.
+          Trace the 20 most common Simplified characters — one level per stroke.
         </p>
         <div className="home-wipe-all">
           <button
