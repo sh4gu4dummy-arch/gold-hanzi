@@ -386,8 +386,9 @@ function drawGuideNumber(
 /**
  * Draw stroke-path guides + start-number / direction-arrow markers.
  * Same applyHanziTransform as the grading mask / hanzi-writer (G1).
- * Markers follow the same fromStroke hide rule as the underlay; numbers
- * are the true stroke index 1…n (not renumbered among visible strokes).
+ * Incomplete underlays follow fromStroke (memory hide). Passed strokes
+ * always show a light-green underlay even when memory-hidden. Markers
+ * still follow fromStroke; numbers are true stroke index 1…n.
  * Near-duplicate starts are fanned apart (see layoutGuideMarkers).
  */
 function drawStrokeGuides(
@@ -402,7 +403,7 @@ function drawStrokeGuides(
 ): void {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, cssSize, cssSize)
-  if (fromStroke >= strokePaths.length) return
+  if (strokePaths.length === 0) return
 
   const { u, scale } = markerSizeHanzi(cssSize)
   const markerFill = hexToRgba(accent, 0.92)
@@ -413,17 +414,22 @@ function drawStrokeGuides(
 
   ctx.save()
   applyHanziTransform(ctx, cssSize, contentCenter)
-  for (let i = fromStroke; i < strokePaths.length; i++) {
+  // Memory levels hide early incomplete guides, but a passed stroke always
+  // reveals its light-green underlay so the player sees confirmation.
+  for (let i = 0; i < strokePaths.length; i++) {
+    const done = !!strokeDone?.[i]
+    const guideVisible = i >= fromStroke
+    if (!done && !guideVisible) continue
     try {
       const path = new Path2D(strokePaths[i]!)
-      // Passed strokes turn green; incomplete keep faint accent.
-      ctx.fillStyle = strokeDone?.[i] ? doneFill : faintFill
+      ctx.fillStyle = done ? doneFill : faintFill
       ctx.fill(path)
     } catch {
       // Ignore malformed path segments.
     }
   }
 
+  // Numbers/arrows only for strokes that still show a live guide.
   const markers = layoutGuideMarkers(medians, fromStroke, u)
   for (const m of markers) {
     // Fan may shift the mark; keep the stroke tangent so the arrow
