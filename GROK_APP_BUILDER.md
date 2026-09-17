@@ -49,6 +49,15 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-16 — No green surplus ink after a stroke passes (v0.006)
+
+**Who:** Grok App Builder  
+**Paths:** `src/components/TracePad.tsx`, `src/version.ts`
+
+After a stroke greens, learner ink on that stroke is still wiped (clean green guide). **New** ink after that stays purple and still stamps toward remaining strokes. Removed `recolorCompletedInk` — that was turning leftover marks dark green on already-passed medians and making 的 look muddy.
+
+Copy `TracePad.tsx` + `version.ts` back to the Vite repo. Router-agnostic.
+
 ### 2026-09-16 — App Builder loaded `main` (v0.005)
 
 **Who:** Grok App Builder  
