@@ -49,6 +49,17 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-17 — Demo toggle + pen-up purple clear (v0.008)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `src/components/TracePad.tsx`, `src/lib/demoPref.ts`, `src/version.ts`
+
+- Terms: **Demo** = animated stroke-order playback; **Guide** = on-pad trace underlay.
+- Demo on/off toggle (persists in `localStorage` key `chinese-trace:demo-enabled:v1`).
+- Post-success extra purple clears on pen-up after a stroke passes (not when the next stroke passes).
+- Removed “no Done button needed” and grade-meter “follow/finish the stroke” copy.
+
+
 
 ### 2026-09-17 — Next 10 most-common characters (v0.007)
 

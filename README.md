@@ -27,7 +27,7 @@ npm run preview -- --host 0.0.0.0 --port 5173
 2. Tap a tile to open practice. **Level count = stroke count** for that character.
 3. **Level 1:** full stroke-path guide stays visible while you write.
 4. **Level k (k>1):** after a slow whole-character demo, strokes 1..(k−1) are hidden (memory); later strokes still show a path guide.
-5. Draw freely on the pad. A level is beaten only when the **app** grades a pass (per-stroke median samples + end-of-stroke) — then it auto-finishes. No Done button.
+5. Draw freely on the pad. A level is beaten only when the **app** grades a pass (per-stroke median samples + end-of-stroke) — then it auto-finishes.
 6. Bottom pips select/retry levels; unlocking is sequential (beat L1 to unlock L2). Progress persists in `localStorage`.
 
 ## Grading

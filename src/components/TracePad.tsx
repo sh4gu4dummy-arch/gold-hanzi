@@ -7,7 +7,6 @@ import {
   buildLetterMask,
   clearInk,
   contentCenterFromMedians,
-  describeGradeNeeds,
   earlyMedianTangent,
   evaluateGrade,
   hanziScale,
@@ -24,6 +23,7 @@ import {
   markLevelBeaten,
 } from '../lib/progress'
 import type { CharProgress } from '../lib/progress'
+import { getDemoEnabled, setDemoEnabled } from '../lib/demoPref'
 
 export const DEFAULT_ACCENT = '#7C5CBF'
 /** Guide path fill when a stroke passes median grading (hit fraction + end band). */
@@ -521,6 +521,9 @@ export default function TracePad({
   const levelCountRef = useRef(0)
   const showMyStrokesRef = useRef(false)
   const prevStrokeDoneRef = useRef<boolean[] | null>(null)
+  /** True after a stroke passes in the current pen gesture — clear leftover purple on pen-up. */
+  const gesturePassedStrokeRef = useRef(false)
+  const demoEnabledRef = useRef(getDemoEnabled())
 
   const strokeData = STROKE_DATA[character]
   const levelCount = strokeData?.strokes.length ?? 0
@@ -535,9 +538,11 @@ export default function TracePad({
   const [liveGrade, setLiveGrade] = useState<GradeStatus | null>(null)
   /** false (default): guides on, hide completed hand ink. true: ink only. */
   const [showMyStrokes, setShowMyStrokes] = useState(false)
+  const [demoEnabled, setDemoEnabledState] = useState(() => getDemoEnabled())
 
   levelRef.current = level
   showMyStrokesRef.current = showMyStrokes
+  demoEnabledRef.current = demoEnabled
 
   const clearAutoAdvance = useCallback(() => {
     if (autoAdvanceTimerRef.current != null) {
@@ -819,9 +824,11 @@ export default function TracePad({
 
     // After a stroke passes: hide hand ink so only the green guide remains.
     // Extra writing after that stays accent-purple and still stamps toward
-    // remaining strokes. Wipe again when the next stroke completes.
+    // remaining strokes. Also mark this gesture so pen-up clears any
+    // post-success leftover purple immediately (not on the next stroke).
     if (!showInk && (newlyDone || status.pass)) {
       clearCanvasPixels(inkCanvasRef.current)
+      if (newlyDone) gesturePassedStrokeRef.current = true
     }
 
     if (status.pass) {
@@ -838,16 +845,25 @@ export default function TracePad({
 
       clearAutoAdvance()
       doneRef.current = false
-      setPhase('demo')
       setLiveGrade(null)
       setLoadError(null)
       setShowMyStrokes(false)
       showMyStrokesRef.current = false
       prevStrokeDoneRef.current = null
+      gesturePassedStrokeRef.current = false
 
       resizeCanvases()
       clearInkCanvas()
       clearGuideCanvas(guideCanvasRef.current)
+
+      // Demo off: skip animated stroke-order playback and go straight to Guide.
+      if (!demoEnabledRef.current) {
+        hideWriterHost()
+        await enterWritingAfterDemo(levelNum, session)
+        return
+      }
+
+      setPhase('demo')
 
       // Show writer for demo; hide freehand canvases' interaction feel.
       host.style.opacity = '1'
@@ -877,6 +893,7 @@ export default function TracePad({
       clearAutoAdvance,
       clearInkCanvas,
       enterWritingAfterDemo,
+      hideWriterHost,
       resizeCanvases,
       strokeData,
     ],
@@ -1151,6 +1168,15 @@ export default function TracePad({
         /* ignore */
       }
       checkGrade()
+      // Post-success extra purple from this stroke clears on pen-up, not when
+      // the next stroke finally passes.
+      if (
+        gesturePassedStrokeRef.current &&
+        !showMyStrokesRef.current
+      ) {
+        clearCanvasPixels(inkCanvasRef.current)
+        gesturePassedStrokeRef.current = false
+      }
     }
 
     canvas.addEventListener('pointerdown', onDown)
@@ -1164,6 +1190,13 @@ export default function TracePad({
       canvas.removeEventListener('pointercancel', onUp)
     }
   }, [accent, phase, checkGrade, ensureInkStore])
+
+  const toggleDemoEnabled = () => {
+    const next = !demoEnabledRef.current
+    setDemoEnabled(next)
+    setDemoEnabledState(next)
+    demoEnabledRef.current = next
+  }
 
   const toggleShowMyStrokes = () => {
     const next = !showMyStrokesRef.current
@@ -1187,7 +1220,7 @@ export default function TracePad({
     levelCount === 0
       ? 'Levels · Loading…'
       : phase === 'demo'
-        ? `Levels · Level ${level} · watch the guide`
+        ? `Levels · Level ${level} · Demo`
         : phase === 'passed'
           ? `Levels · Level ${level} cleared!`
           : `Levels · Level ${level} of ${levelCount}`
@@ -1195,8 +1228,6 @@ export default function TracePad({
   const strokeTotal = strokeData?.strokes.length ?? levelCount
   const strokesDone =
     liveGrade != null ? liveGrade.doneCount : 0
-  const gradeNeeds =
-    liveGrade != null ? describeGradeNeeds(liveGrade) : 'follow the stroke'
 
   const memoryHint =
     level <= 1
@@ -1227,28 +1258,40 @@ export default function TracePad({
         )}
       </div>
 
-      {(phase === 'writing' || phase === 'passed') && (
+      {(phase === 'writing' || phase === 'passed' || phase === 'demo') && (
         <div className="grade-meter-row">
           {phase === 'writing' && (
             <div
               className={`grade-meter${liveGrade?.pass ? ' is-ok' : ''}`}
               aria-live="polite"
-              aria-label={`${strokesDone} of ${strokeTotal} strokes completed. ${gradeNeeds}`}
+              aria-label={`${strokesDone} of ${strokeTotal} strokes completed`}
             >
               <span className="grade-meter-progress">
                 {strokesDone}/{strokeTotal} strokes
               </span>
-              <span className="grade-meter-gates"> · {gradeNeeds}</span>
             </div>
           )}
-          <button
-            type="button"
-            className={`show-strokes-toggle${showMyStrokes ? ' is-on' : ''}`}
-            onClick={toggleShowMyStrokes}
-            aria-pressed={showMyStrokes}
-          >
-            {showMyStrokes ? 'Show guides' : 'Show my strokes'}
-          </button>
+          {phase !== 'passed' && (
+            <button
+              type="button"
+              className={`show-strokes-toggle${demoEnabled ? ' is-on' : ''}`}
+              onClick={toggleDemoEnabled}
+              aria-pressed={demoEnabled}
+              title="Animated stroke-order Demo"
+            >
+              {demoEnabled ? 'Demo on' : 'Demo off'}
+            </button>
+          )}
+          {(phase === 'writing' || phase === 'passed') && (
+            <button
+              type="button"
+              className={`show-strokes-toggle${showMyStrokes ? ' is-on' : ''}`}
+              onClick={toggleShowMyStrokes}
+              aria-pressed={showMyStrokes}
+            >
+              {showMyStrokes ? 'Show guides' : 'Show my strokes'}
+            </button>
+          )}
         </div>
       )}
 
@@ -1368,16 +1411,16 @@ export default function TracePad({
             onClick={skipGuide}
             disabled={!!loadError}
           >
-            Skip guide
+            Skip demo
           </button>
         ) : (
           <button
             type="button"
             className="btn btn-ghost"
             onClick={replayGuide}
-            disabled={phase === 'loading' || !!loadError}
+            disabled={phase === 'loading' || !!loadError || !demoEnabled}
           >
-            Replay guide
+            Replay demo
           </button>
         )}
         <button
@@ -1403,16 +1446,13 @@ export default function TracePad({
       <p className="trace-hint">
         {phase === 'passed' ? (
           <>
-            Nice work — you followed and finished each stroke. Tap a pip to
-            review your drawing, or Replay guide to practice again.
+            Nice work. Tap a pip to review your drawing, or Replay demo to
+            practice again.
           </>
         ) : phase === 'demo' ? (
-          <>Watch the stroke order, or tap Skip guide to start tracing.</>
+          <>Watch the Demo, or tap Skip demo to start tracing.</>
         ) : (
-          <>
-            {memoryHint} Pass when you follow each stroke to the end — no Done
-            button needed.
-          </>
+          <>{memoryHint}</>
         )}
       </p>
     </div>
