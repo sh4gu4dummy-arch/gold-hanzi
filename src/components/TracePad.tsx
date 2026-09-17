@@ -492,7 +492,7 @@ function recolorCompletedInk(
   if (w < 1 || h < 1) return
 
   // Cover the full pen width plus grading side fuzz so messy ink turns green.
-  const rad = Math.max(strokeHitRadius(mask.dpr), inkWidthCss() * mask.dpr * 0.85)
+  const rad = Math.max(strokeHitRadius(mask.dpr), inkWidthCss() * mask.dpr * 1.35)
   const rad2 = rad * rad
   const green = parseHexRgb(DONE_STROKE_INK_GREEN)
 
@@ -553,6 +553,42 @@ function clearGuideCanvas(guide: HTMLCanvasElement | null): void {
   gctx.clearRect(0, 0, guide.width, guide.height)
 }
 
+function clearCanvasPixels(canvas: HTMLCanvasElement | null): void {
+  if (!canvas) return
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+}
+
+function blitCanvas(
+  source: HTMLCanvasElement,
+  dest: HTMLCanvasElement,
+): void {
+  const ctx = dest.getContext('2d')
+  if (!ctx) return
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  ctx.clearRect(0, 0, dest.width, dest.height)
+  ctx.drawImage(source, 0, 0, dest.width, dest.height)
+}
+
+/** Stroke/dot style shared by visible ink canvas and offscreen store. */
+function prepareInkCtx(
+  ctx: CanvasRenderingContext2D,
+  dpr: number,
+  accent: string,
+): number {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  ctx.strokeStyle = accent
+  ctx.fillStyle = accent
+  const inkW = inkWidthCss()
+  ctx.lineWidth = inkW
+  return inkW
+}
+
+
 export default function TracePad({
   character,
   accent = DEFAULT_ACCENT,
@@ -563,6 +599,8 @@ export default function TracePad({
   const writerHostRef = useRef<HTMLDivElement>(null)
   const guideCanvasRef = useRef<HTMLCanvasElement>(null)
   const inkCanvasRef = useRef<HTMLCanvasElement>(null)
+  /** Offscreen ink archive — survives visible clears after strokes pass. */
+  const inkStoreRef = useRef<HTMLCanvasElement | null>(null)
 
   const writerRef = useRef<HanziWriter | null>(null)
   const maskRef = useRef<LetterMask | null>(null)
@@ -573,6 +611,8 @@ export default function TracePad({
   const levelRef = useRef(1)
   const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const levelCountRef = useRef(0)
+  const showMyStrokesRef = useRef(false)
+  const prevStrokeDoneRef = useRef<boolean[] | null>(null)
 
   const strokeData = STROKE_DATA[character]
   const levelCount = strokeData?.strokes.length ?? 0
@@ -585,8 +625,11 @@ export default function TracePad({
   const [phase, setPhase] = useState<Phase>('loading')
   const [loadError, setLoadError] = useState<string | null>(null)
   const [liveGrade, setLiveGrade] = useState<GradeStatus | null>(null)
+  /** false (default): guides on, hide completed hand ink. true: ink only. */
+  const [showMyStrokes, setShowMyStrokes] = useState(false)
 
   levelRef.current = level
+  showMyStrokesRef.current = showMyStrokes
 
   const clearAutoAdvance = useCallback(() => {
     if (autoAdvanceTimerRef.current != null) {
@@ -611,6 +654,13 @@ export default function TracePad({
     return Math.max(1, Math.round(Math.min(w, h)))
   }
 
+  const ensureInkStore = useCallback(() => {
+    if (!inkStoreRef.current) {
+      inkStoreRef.current = document.createElement('canvas')
+    }
+    return inkStoreRef.current
+  }, [])
+
   const resizeCanvases = useCallback(() => {
     const wrap = wrapRef.current
     const guide = guideCanvasRef.current
@@ -618,14 +668,29 @@ export default function TracePad({
     if (!wrap || !guide || !ink) return
     const cssSize = stageCssSize()
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
+    const px = Math.round(cssSize * dpr)
+    const store = ensureInkStore()
+    for (const canvas of [guide, ink, store]) {
+      canvas.width = px
+      canvas.height = px
+    }
+    // Fill the square stage; CSS absolute inset centers via host layout.
     for (const canvas of [guide, ink]) {
-      canvas.width = Math.round(cssSize * dpr)
-      canvas.height = Math.round(cssSize * dpr)
-      // Fill the square stage; CSS absolute inset centers via host layout.
       canvas.style.width = '100%'
       canvas.style.height = '100%'
     }
     return { cssSize, dpr }
+  }, [ensureInkStore])
+
+  const blitStoreToVisible = useCallback(() => {
+    const ink = inkCanvasRef.current
+    const store = inkStoreRef.current
+    if (!ink || !store) return
+    blitCanvas(store, ink)
+  }, [])
+
+  const clearVisibleInkOnly = useCallback(() => {
+    clearCanvasPixels(inkCanvasRef.current)
   }, [])
 
   const paintGuide = useCallback(
@@ -671,20 +736,25 @@ export default function TracePad({
   }, [strokeData])
 
   const clearInkCanvas = useCallback(() => {
-    const ink = inkCanvasRef.current
-    if (!ink) return
-    const ctx = ink.getContext('2d')
-    if (!ctx) return
-    ctx.setTransform(1, 0, 0, 1, 0, 0)
-    ctx.clearRect(0, 0, ink.width, ink.height)
+    clearCanvasPixels(inkCanvasRef.current)
+    clearCanvasPixels(inkStoreRef.current)
+    prevStrokeDoneRef.current = null
     if (maskRef.current) {
       clearInk(maskRef.current)
       const status = evaluateGrade(maskRef.current)
       setLiveGrade(status)
-      paintGuide(levelRef.current, status.strokeDone)
+      if (!showMyStrokesRef.current) {
+        paintGuide(levelRef.current, status.strokeDone)
+      } else {
+        clearGuideCanvas(guideCanvasRef.current)
+      }
     } else {
       setLiveGrade(null)
-      paintGuide(levelRef.current, null)
+      if (!showMyStrokesRef.current) {
+        paintGuide(levelRef.current, null)
+      } else {
+        clearGuideCanvas(guideCanvasRef.current)
+      }
     }
   }, [paintGuide])
 
@@ -697,24 +767,31 @@ export default function TracePad({
   }, [])
 
   const restoreInkFromDataUrl = useCallback(
-    (dataUrl: string, session: number) => {
+    (dataUrl: string, session: number, showInk: boolean) => {
       const ink = inkCanvasRef.current
+      const store = ensureInkStore()
       if (!ink || !dataUrl) return
-      const ctx = ink.getContext('2d')
-      if (!ctx) return
       const img = new Image()
       img.onload = () => {
         if (sessionRef.current !== session) return
-        ctx.setTransform(1, 0, 0, 1, 0, 0)
-        ctx.clearRect(0, 0, ink.width, ink.height)
-        ctx.drawImage(img, 0, 0, ink.width, ink.height)
+        const sctx = store.getContext('2d')
+        if (sctx) {
+          sctx.setTransform(1, 0, 0, 1, 0, 0)
+          sctx.clearRect(0, 0, store.width, store.height)
+          sctx.drawImage(img, 0, 0, store.width, store.height)
+        }
+        if (showInk) {
+          blitCanvas(store, ink)
+        } else {
+          clearCanvasPixels(ink)
+        }
       }
       img.src = dataUrl
     },
-    [],
+    [ensureInkStore],
   )
 
-  /** Review a beaten level: saved ink, no guide, phase passed. */
+  /** Review a beaten level: show saved handwriting (show-my-strokes on). */
   const enterReviewMode = useCallback(
     (levelNum: number) => {
       clearAutoAdvance()
@@ -725,16 +802,18 @@ export default function TracePad({
       setPhase('passed')
       setLiveGrade(null)
       setLoadError(null)
+      setShowMyStrokes(true)
+      showMyStrokesRef.current = true
 
       hideWriterHost()
       resizeCanvases()
       clearInkCanvas()
-      // clearInkCanvas may repaint guides for writing; review has no guide underlay.
+      // Review: hide guides, show archived handwriting.
       clearGuideCanvas(guideCanvasRef.current)
 
       const dataUrl = getLevelInk(character, levelNum)
       if (dataUrl) {
-        restoreInkFromDataUrl(dataUrl, session)
+        restoreInkFromDataUrl(dataUrl, session, true)
       }
     },
     [
@@ -768,7 +847,11 @@ export default function TracePad({
 
     let inkDataUrl: string | undefined
     try {
-      inkDataUrl = inkCanvasRef.current?.toDataURL('image/png') ?? undefined
+      // Prefer offscreen store — visible ink may already be cleared.
+      inkDataUrl =
+        inkStoreRef.current?.toDataURL('image/png') ??
+        inkCanvasRef.current?.toDataURL('image/png') ??
+        undefined
     } catch {
       inkDataUrl = undefined
     }
@@ -810,11 +893,34 @@ export default function TracePad({
     if (!mask || doneRef.current) return
     const status = evaluateGrade(mask)
     setLiveGrade(status)
-    // Live: green fills for completed strokes + X/Y meter via liveGrade.
-    paintGuide(levelRef.current, status.strokeDone)
-    // Dark purple ink near passed strokes → darker green (guide already light green).
+
+    const showInk = showMyStrokesRef.current
+    if (showInk) {
+      clearGuideCanvas(guideCanvasRef.current)
+    } else {
+      // Live: green fills for completed strokes + X/Y meter via liveGrade.
+      paintGuide(levelRef.current, status.strokeDone)
+    }
+
+    // Purple ink near passed strokes → darker green on both canvases.
     const ink = inkCanvasRef.current
+    const store = inkStoreRef.current
     if (ink) recolorCompletedInk(ink, mask, status.strokeDone)
+    if (store) recolorCompletedInk(store, mask, status.strokeDone)
+
+    const prev = prevStrokeDoneRef.current
+    const newlyDone =
+      status.strokeDone?.some((d, i) => d && !(prev && prev[i])) ?? false
+    prevStrokeDoneRef.current = status.strokeDone
+      ? status.strokeDone.slice()
+      : null
+
+    // Default mode: after a stroke passes, hide hand ink (guides stay).
+    // Skip while mid-stroke unless a stroke just completed (so live ink stays).
+    if (!showInk && (newlyDone || status.pass)) {
+      clearCanvasPixels(ink)
+    }
+
     if (status.pass) {
       finishPass()
     }
@@ -832,6 +938,9 @@ export default function TracePad({
       setPhase('demo')
       setLiveGrade(null)
       setLoadError(null)
+      setShowMyStrokes(false)
+      showMyStrokesRef.current = false
+      prevStrokeDoneRef.current = null
 
       resizeCanvases()
       clearInkCanvas()
@@ -990,7 +1099,11 @@ export default function TracePad({
         // Keep review ink visible; re-stretch saved snapshot if present.
         const dataUrl = getLevelInk(character, levelRef.current)
         if (dataUrl) {
-          restoreInkFromDataUrl(dataUrl, sessionRef.current)
+          restoreInkFromDataUrl(
+            dataUrl,
+            sessionRef.current,
+            showMyStrokesRef.current,
+          )
         }
       }
     })
@@ -1063,7 +1176,7 @@ export default function TracePad({
     selectLevel(level + 1)
   }
 
-  // Pointer drawing on ink canvas.
+  // Pointer drawing on ink canvas (+ offscreen store).
   useEffect(() => {
     const canvas = inkCanvasRef.current
     if (!canvas) return
@@ -1076,6 +1189,11 @@ export default function TracePad({
       }
     }
 
+    const inkTargets = () => {
+      const store = inkStoreRef.current ?? ensureInkStore()
+      return [canvas, store]
+    }
+
     const onDown = (e: PointerEvent) => {
       if (phase !== 'writing' || doneRef.current) return
       e.preventDefault()
@@ -1083,20 +1201,17 @@ export default function TracePad({
       drawingRef.current = true
       const pt = getPos(e)
       lastPtRef.current = pt
-      const ctx = canvas.getContext('2d')
       const mask = maskRef.current
-      if (!ctx || !mask) return
+      if (!mask) return
       const dpr = mask.dpr
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      ctx.lineCap = 'round'
-      ctx.lineJoin = 'round'
-      ctx.strokeStyle = accent
-      ctx.fillStyle = accent
-      const inkW = inkWidthCss()
-      ctx.lineWidth = inkW
-      ctx.beginPath()
-      ctx.arc(pt.x, pt.y, inkW / 2, 0, Math.PI * 2)
-      ctx.fill()
+      for (const target of inkTargets()) {
+        const ctx = target.getContext('2d')
+        if (!ctx) continue
+        const inkW = prepareInkCtx(ctx, dpr, accent)
+        ctx.beginPath()
+        ctx.arc(pt.x, pt.y, inkW / 2, 0, Math.PI * 2)
+        ctx.fill()
+      }
       stampInkSegment(mask, pt.x, pt.y, pt.x, pt.y)
       checkGrade()
     }
@@ -1107,19 +1222,18 @@ export default function TracePad({
       const pt = getPos(e)
       const prev = lastPtRef.current ?? pt
       lastPtRef.current = pt
-      const ctx = canvas.getContext('2d')
       const mask = maskRef.current
-      if (!ctx || !mask) return
+      if (!mask) return
       const dpr = mask.dpr
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      ctx.lineCap = 'round'
-      ctx.lineJoin = 'round'
-      ctx.strokeStyle = accent
-      ctx.lineWidth = inkWidthCss()
-      ctx.beginPath()
-      ctx.moveTo(prev.x, prev.y)
-      ctx.lineTo(pt.x, pt.y)
-      ctx.stroke()
+      for (const target of inkTargets()) {
+        const ctx = target.getContext('2d')
+        if (!ctx) continue
+        prepareInkCtx(ctx, dpr, accent)
+        ctx.beginPath()
+        ctx.moveTo(prev.x, prev.y)
+        ctx.lineTo(pt.x, pt.y)
+        ctx.stroke()
+      }
       stampInkSegment(mask, prev.x, prev.y, pt.x, pt.y)
       checkGrade()
     }
@@ -1146,7 +1260,24 @@ export default function TracePad({
       canvas.removeEventListener('pointerup', onUp)
       canvas.removeEventListener('pointercancel', onUp)
     }
-  }, [accent, phase, checkGrade])
+  }, [accent, phase, checkGrade, ensureInkStore])
+
+  const toggleShowMyStrokes = () => {
+    const next = !showMyStrokesRef.current
+    setShowMyStrokes(next)
+    showMyStrokesRef.current = next
+    if (next) {
+      clearGuideCanvas(guideCanvasRef.current)
+      blitStoreToVisible()
+    } else {
+      const mask = maskRef.current
+      const done =
+        liveGrade?.strokeDone ??
+        (mask ? evaluateGrade(mask).strokeDone : null)
+      paintGuide(levelRef.current, done)
+      clearVisibleInkOnly()
+    }
+  }
 
   const beatenSet = new Set(progress.beaten)
   const levelLabel =
@@ -1193,16 +1324,28 @@ export default function TracePad({
         )}
       </div>
 
-      {phase === 'writing' && (
-        <div
-          className={`grade-meter${liveGrade?.pass ? ' is-ok' : ''}`}
-          aria-live="polite"
-          aria-label={`${strokesDone} of ${strokeTotal} strokes completed. ${gradeNeeds}`}
-        >
-          <span className="grade-meter-progress">
-            {strokesDone}/{strokeTotal} strokes
-          </span>
-          <span className="grade-meter-gates"> · {gradeNeeds}</span>
+      {(phase === 'writing' || phase === 'passed') && (
+        <div className="grade-meter-row">
+          {phase === 'writing' && (
+            <div
+              className={`grade-meter${liveGrade?.pass ? ' is-ok' : ''}`}
+              aria-live="polite"
+              aria-label={`${strokesDone} of ${strokeTotal} strokes completed. ${gradeNeeds}`}
+            >
+              <span className="grade-meter-progress">
+                {strokesDone}/{strokeTotal} strokes
+              </span>
+              <span className="grade-meter-gates"> · {gradeNeeds}</span>
+            </div>
+          )}
+          <button
+            type="button"
+            className={`show-strokes-toggle${showMyStrokes ? ' is-on' : ''}`}
+            onClick={toggleShowMyStrokes}
+            aria-pressed={showMyStrokes}
+          >
+            {showMyStrokes ? 'Show guides' : 'Show my strokes'}
+          </button>
         </div>
       )}
 
