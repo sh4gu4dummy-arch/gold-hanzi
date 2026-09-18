@@ -521,6 +521,8 @@ export default function TracePad({
   const levelCountRef = useRef(0)
   const showMyStrokesRef = useRef(false)
   const prevStrokeDoneRef = useRef<boolean[] | null>(null)
+  /** Last strokeDone snapshot — used to repaint green Guide after pass/resize. */
+  const lastStrokeDoneRef = useRef<boolean[] | null>(null)
   /** True after a stroke passes in the current pen gesture — clear leftover purple on pen-up. */
   const gesturePassedStrokeRef = useRef(false)
   const demoEnabledRef = useRef(getDemoEnabled())
@@ -721,8 +723,18 @@ export default function TracePad({
       hideWriterHost()
       resizeCanvases()
       clearInkCanvas()
-      // Review: hide guides, show archived handwriting.
-      clearGuideCanvas(guideCanvasRef.current)
+      // Review: green Guide for the cleared character; optional ink on top.
+      const done =
+        lastStrokeDoneRef.current ??
+        (strokeData
+          ? strokeData.strokes.map(() => true)
+          : null)
+      if (done) {
+        lastStrokeDoneRef.current = done
+        paintGuide(levelNum, done)
+      } else {
+        clearGuideCanvas(guideCanvasRef.current)
+      }
 
       const dataUrl = getLevelInk(character, levelNum)
       if (dataUrl) {
@@ -734,8 +746,10 @@ export default function TracePad({
       clearAutoAdvance,
       clearInkCanvas,
       hideWriterHost,
+      paintGuide,
       resizeCanvases,
       restoreInkFromDataUrl,
+      strokeData,
     ],
   )
 
@@ -757,6 +771,16 @@ export default function TracePad({
     if (doneRef.current) return
     doneRef.current = true
     setPhase('passed')
+
+    // Keep green Guide visible after clear (resize/pass used to wipe the canvas).
+    const done =
+      lastStrokeDoneRef.current ??
+      (strokeData
+        ? strokeData.strokes.map(() => true)
+        : null)
+    if (done && !showMyStrokesRef.current) {
+      paintGuide(levelRef.current, done)
+    }
 
     let inkDataUrl: string | undefined
     try {
@@ -799,6 +823,8 @@ export default function TracePad({
     enterReviewMode,
     notifyProgress,
     onDone,
+    paintGuide,
+    strokeData,
   ])
 
   const checkGrade = useCallback(() => {
@@ -821,6 +847,9 @@ export default function TracePad({
     prevStrokeDoneRef.current = status.strokeDone
       ? status.strokeDone.slice()
       : null
+    if (status.strokeDone) {
+      lastStrokeDoneRef.current = status.strokeDone.slice()
+    }
 
     // After a stroke passes: hide hand ink so only the green guide remains.
     // Extra writing after that stays accent-purple and still stamps toward
@@ -1016,13 +1045,22 @@ export default function TracePad({
       if (phase === 'writing' && !doneRef.current) {
         void rebuildMask().then(() => clearInkCanvas())
       } else if (phase === 'passed') {
-        // Keep review ink visible; re-stretch saved snapshot if present.
+        // resizeCanvases() clears pixels — always repaint green Guide.
+        const done =
+          lastStrokeDoneRef.current ??
+          (strokeData
+            ? strokeData.strokes.map(() => true)
+            : null)
+        if (done) {
+          paintGuide(levelRef.current, done)
+        }
+        // Keep review ink visible when "Show my strokes" is on.
         const dataUrl = getLevelInk(character, levelRef.current)
-        if (dataUrl) {
+        if (dataUrl && showMyStrokesRef.current) {
           restoreInkFromDataUrl(
             dataUrl,
             sessionRef.current,
-            showMyStrokesRef.current,
+            true,
           )
         }
       }
@@ -1202,15 +1240,18 @@ export default function TracePad({
     const next = !showMyStrokesRef.current
     setShowMyStrokes(next)
     showMyStrokesRef.current = next
+    const mask = maskRef.current
+    const done =
+      lastStrokeDoneRef.current ??
+      liveGrade?.strokeDone ??
+      (mask ? evaluateGrade(mask).strokeDone : null) ??
+      (strokeData ? strokeData.strokes.map(() => true) : null)
     if (next) {
-      clearGuideCanvas(guideCanvasRef.current)
+      // Keep green Guide under ink so cleared strokes stay visible.
+      if (done) paintGuide(levelRef.current, done)
       blitStoreToVisible()
     } else {
-      const mask = maskRef.current
-      const done =
-        liveGrade?.strokeDone ??
-        (mask ? evaluateGrade(mask).strokeDone : null)
-      paintGuide(levelRef.current, done)
+      if (done) paintGuide(levelRef.current, done)
       clearVisibleInkOnly()
     }
   }

@@ -49,6 +49,16 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-18 — Theme icons, lesson UX, keep green Guide (v0.010)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `ThemeToggle.tsx`, `Home.tsx`, `homeCatalog.ts`, `TracePad.tsx`, `index.css`
+
+- Theme toggle uses sun/moon symbols.
+- Lessons open/close independently (12 chars, 3-column grid).
+- Green Guide repaints after level pass / resize (no longer wiped blank).
+
+
 ### 2026-09-18 — Home Option C + classic HSK 1–2 (v0.009)
 
 **Who:** gold-hanzi (repo Grok)  

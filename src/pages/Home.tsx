@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import ThemeToggle from '../components/ThemeToggle'
 import { CHARACTERS } from '../data/characters'
@@ -26,20 +26,34 @@ export default function Home() {
   const [difficulty, setDifficultyState] = useState<DifficultyMode>(() =>
     getDifficultyMode(),
   )
+  /** null = default first band; -1 = all bands collapsed */
   const [openBand, setOpenBand] = useState<number | null>(null)
-  const [openLesson, setOpenLesson] = useState<string | null>(null)
+  /** Independently open lessons (manual minimize; opening one does not close others). */
+  const [openLessons, setOpenLessons] = useState<Set<string>>(() => new Set())
 
-  const bands = useMemo(() => buildBands(CHARACTERS, hskView), [hskView, revision])
+  const bands = useMemo(
+    () => buildBands(CHARACTERS, hskView),
+    [hskView, revision],
+  )
   const ordered = useMemo(
     () => entriesForView(CHARACTERS, hskView),
     [hskView, revision],
   )
 
-  // Default: first band + first lesson open
-  const activeBand = openBand ?? bands[0]?.level ?? null
-  const activeBandObj = bands.find((b) => b.level === activeBand) ?? bands[0]
-  const activeLessonId =
-    openLesson ?? activeBandObj?.lessons[0]?.id ?? null
+  const resolvedBand =
+    openBand === -1 ? null : (openBand ?? bands[0]?.level ?? null)
+
+  // When the HSK view / band set changes, open the first lesson of the default band once.
+  useEffect(() => {
+    const nextBands = buildBands(CHARACTERS, hskView)
+    const first = nextBands[0]?.lessons[0]?.id
+    if (!first) {
+      setOpenLessons(new Set())
+      return
+    }
+    setOpenLessons(new Set([first]))
+    setOpenBand(null)
+  }, [hskView, revision])
 
   const handleWipeAll = () => {
     const ok = window.confirm(
@@ -53,8 +67,6 @@ export default function Home() {
   const onHskView = (view: HskView) => {
     setHskView(view)
     setHskViewState(view)
-    setOpenBand(null)
-    setOpenLesson(null)
   }
 
   const onDifficulty = (mode: DifficultyMode) => {
@@ -64,24 +76,20 @@ export default function Home() {
 
   const toggleBand = (level: number) => {
     setOpenBand((cur) => {
-      const next = (cur ?? bands[0]?.level) === level ? -1 : level
-      // -1 means all collapsed; null means default first
-      if (next === -1) {
-        setOpenLesson(null)
-        return -1
-      }
-      const band = bands.find((b) => b.level === next)
-      setOpenLesson(band?.lessons[0]?.id ?? null)
-      return next
+      const current = cur ?? bands[0]?.level
+      if (current === level) return -1
+      return level
     })
   }
 
   const toggleLesson = (lessonId: string) => {
-    setOpenLesson((cur) => (cur === lessonId ? null : lessonId))
+    setOpenLessons((prev) => {
+      const next = new Set(prev)
+      if (next.has(lessonId)) next.delete(lessonId)
+      else next.add(lessonId)
+      return next
+    })
   }
-
-  const resolvedBand =
-    activeBand === -1 ? null : (activeBand ?? bands[0]?.level ?? null)
 
   return (
     <main className="page home">
@@ -100,7 +108,7 @@ export default function Home() {
         </div>
         <p className="lede home-lede">
           Trace Simplified characters by HSK band — one practice level per
-          stroke. Mobile-first; open one lesson at a time.
+          stroke. Mobile-first; 12 characters per lesson.
         </p>
 
         <div className="home-toggles" role="group" aria-label="Home options">
@@ -178,7 +186,7 @@ export default function Home() {
               {expanded && (
                 <div className="hsk-band-body">
                   {band.lessons.map((lesson) => {
-                    const lessonOpen = activeLessonId === lesson.id
+                    const lessonOpen = openLessons.has(lesson.id)
                     const lessonProg = bandProgress(lesson.entries)
                     return (
                       <div
@@ -240,8 +248,7 @@ function CharTile({
 }) {
   const strokes = strokeLevelCount(entry.character)
   const cleared = beatenCount(entry.character)
-  const badge =
-    hskView === 'classic' ? entry.hskClassic : entry.hskV3
+  const badge = hskView === 'classic' ? entry.hskClassic : entry.hskV3
 
   if (!unlocked) {
     return (
@@ -272,9 +279,7 @@ function CharTile({
       >
         <span className="char-glyph">{entry.character}</span>
         <span className="char-pinyin">{entry.pinyin}</span>
-        {badge != null && (
-          <span className="char-hsk-badge">HSK {badge}</span>
-        )}
+        {badge != null && <span className="char-hsk-badge">HSK {badge}</span>}
         {strokes > 0 && (
           <span className="char-levels" aria-hidden="true">
             {Array.from({ length: strokes }, (_, i) => (

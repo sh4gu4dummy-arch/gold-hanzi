@@ -3,7 +3,7 @@ import { STROKE_DATA } from '../data/strokeData'
 import { beatenCount } from './progress'
 import type { DifficultyMode, HskView } from './homePref'
 
-export const LESSON_SIZE = 10
+export const LESSON_SIZE = 12
 
 export type HomeLesson = {
   id: string
