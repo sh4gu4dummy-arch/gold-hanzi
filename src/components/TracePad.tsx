@@ -43,6 +43,14 @@ type TracePadProps = {
 
 type Phase = 'loading' | 'demo' | 'writing' | 'passed'
 
+/** Post–pen-up snapshot so Undo can restore ink store + grading mask. */
+type InkSnapshot = {
+  storePixels: ImageData | null
+  inkBits: Uint8Array
+  cellInk: number[]
+  strokeDone: boolean[] | null
+}
+
 function lighten(hex: string, amount: number): string {
   const raw = hex.replace('#', '')
   const full =
@@ -528,7 +536,9 @@ export default function TracePad({
   const demoEnabledRef = useRef(getDemoEnabled())
 
   const strokeData = STROKE_DATA[character]
-  const levelCount = strokeData?.strokes.length ?? 0
+  /** Progressive levels 1..strokeCount, plus final all-strokes memory. */
+  const strokeCount = strokeData?.strokes.length ?? 0
+  const levelCount = strokeCount > 0 ? strokeCount + 1 : 0
   levelCountRef.current = levelCount
 
   const [progress, setProgress] = useState<CharProgress>(() =>
@@ -541,6 +551,9 @@ export default function TracePad({
   /** false (default): guides on, hide completed hand ink. true: ink only. */
   const [showMyStrokes, setShowMyStrokes] = useState(false)
   const [demoEnabled, setDemoEnabledState] = useState(() => getDemoEnabled())
+  /** Completed pen gestures (pen-down→up) this writing attempt — for Undo. */
+  const gestureStackRef = useRef<InkSnapshot[]>([])
+  const [gestureCount, setGestureCount] = useState(0)
 
   levelRef.current = level
   showMyStrokesRef.current = showMyStrokes
@@ -618,7 +631,8 @@ export default function TracePad({
       const ctx = guide.getContext('2d')
       if (!ctx) return
 
-      // Level 1: all strokes faint. Level k>1: hide strokes 0..(k-2).
+      // Level 1: all guides. Level k (2..strokeCount): hide 0..(k-2).
+      // Final level strokeCount+1: fromStroke === strokeCount → no incomplete guides.
       const fromStroke = levelNum <= 1 ? 0 : levelNum - 1
       drawStrokeGuides(
         ctx,
@@ -650,7 +664,114 @@ export default function TracePad({
     return mask
   }, [strokeData])
 
+  const resetGestureHistory = useCallback(() => {
+    gestureStackRef.current = []
+    setGestureCount(0)
+  }, [])
+
+  const captureInkSnapshot = useCallback((): InkSnapshot | null => {
+    const mask = maskRef.current
+    if (!mask) return null
+    const store = inkStoreRef.current
+    let storePixels: ImageData | null = null
+    if (store && store.width > 0 && store.height > 0) {
+      const ctx = store.getContext('2d')
+      if (ctx) {
+        try {
+          storePixels = ctx.getImageData(0, 0, store.width, store.height)
+        } catch {
+          storePixels = null
+        }
+      }
+    }
+    return {
+      storePixels,
+      inkBits: new Uint8Array(mask.inkBits),
+      cellInk: mask.cellInk.slice(),
+      strokeDone: prevStrokeDoneRef.current
+        ? prevStrokeDoneRef.current.slice()
+        : null,
+    }
+  }, [])
+
+  const applyInkSnapshot = useCallback(
+    (snap: InkSnapshot | null) => {
+      const store = ensureInkStore()
+      const mask = maskRef.current
+      if (!snap) {
+        clearCanvasPixels(inkCanvasRef.current)
+        clearCanvasPixels(store)
+        prevStrokeDoneRef.current = null
+        lastStrokeDoneRef.current = null
+        if (mask) {
+          clearInk(mask)
+          const status = evaluateGrade(mask)
+          setLiveGrade(status)
+          paintGuide(levelRef.current, status.strokeDone)
+        } else {
+          setLiveGrade(null)
+          if (!showMyStrokesRef.current) {
+            paintGuide(levelRef.current, null)
+          } else {
+            clearGuideCanvas(guideCanvasRef.current)
+          }
+        }
+        return
+      }
+
+      const sctx = store.getContext('2d')
+      if (sctx) {
+        sctx.setTransform(1, 0, 0, 1, 0, 0)
+        sctx.clearRect(0, 0, store.width, store.height)
+        if (
+          snap.storePixels &&
+          snap.storePixels.width === store.width &&
+          snap.storePixels.height === store.height
+        ) {
+          sctx.putImageData(snap.storePixels, 0, 0)
+        }
+      }
+
+      if (mask) {
+        if (snap.inkBits.length === mask.inkBits.length) {
+          mask.inkBits.set(snap.inkBits)
+        } else {
+          clearInk(mask)
+        }
+        for (let i = 0; i < mask.cellInk.length; i++) {
+          mask.cellInk[i] = snap.cellInk[i] ?? 0
+        }
+      }
+
+      prevStrokeDoneRef.current = snap.strokeDone
+        ? snap.strokeDone.slice()
+        : null
+      lastStrokeDoneRef.current = snap.strokeDone
+        ? snap.strokeDone.slice()
+        : null
+
+      const ink = inkCanvasRef.current
+      if (showMyStrokesRef.current && ink) {
+        blitCanvas(store, ink)
+      } else {
+        clearCanvasPixels(ink)
+      }
+
+      const status = mask ? evaluateGrade(mask) : null
+      setLiveGrade(status)
+      if (!showMyStrokesRef.current) {
+        paintGuide(levelRef.current, status?.strokeDone ?? null)
+      } else if (status?.strokeDone) {
+        paintGuide(levelRef.current, status.strokeDone)
+      } else {
+        clearGuideCanvas(guideCanvasRef.current)
+      }
+    },
+    [ensureInkStore, paintGuide],
+  )
+
   const clearInkCanvas = useCallback(() => {
+    resetGestureHistory()
     clearCanvasPixels(inkCanvasRef.current)
     clearCanvasPixels(inkStoreRef.current)
     prevStrokeDoneRef.current = null
@@ -671,7 +792,7 @@ export default function TracePad({
         clearGuideCanvas(guideCanvasRef.current)
       }
     }
-  }, [paintGuide])
+  }, [paintGuide, resetGestureHistory])
 
   const hideWriterHost = useCallback(() => {
     const host = writerHostRef.current
@@ -1129,6 +1250,18 @@ export default function TracePad({
     clearInkCanvas()
   }
 
+  /** Remove last completed pen gesture (pen-down → pen-up). Repeatable. */
+  const onUndoStroke = () => {
+    if (phase !== 'writing' || doneRef.current) return
+    if (drawingRef.current) return
+    const stack = gestureStackRef.current
+    if (stack.length === 0) return
+    stack.pop()
+    setGestureCount(stack.length)
+    const prev = stack.length > 0 ? stack[stack.length - 1]! : null
+    applyInkSnapshot(prev)
+  }
+
   const goNextLevel = () => {
     clearAutoAdvance()
     selectLevel(level + 1)
@@ -1215,6 +1348,14 @@ export default function TracePad({
         clearCanvasPixels(inkCanvasRef.current)
         gesturePassedStrokeRef.current = false
       }
+      // Archive completed gesture for Undo (skip if level already passed).
+      if (!doneRef.current) {
+        const snap = captureInkSnapshot()
+        if (snap) {
+          gestureStackRef.current.push(snap)
+          setGestureCount(gestureStackRef.current.length)
+        }
+      }
     }
 
     canvas.addEventListener('pointerdown', onDown)
@@ -1227,7 +1368,7 @@ export default function TracePad({
       canvas.removeEventListener('pointerup', onUp)
       canvas.removeEventListener('pointercancel', onUp)
     }
-  }, [accent, phase, checkGrade, ensureInkStore])
+  }, [accent, phase, checkGrade, ensureInkStore, captureInkSnapshot])
 
   const toggleDemoEnabled = () => {
     const next = !demoEnabledRef.current
@@ -1273,7 +1414,9 @@ export default function TracePad({
   const memoryHint =
     level <= 1
       ? 'Full guide visible — trace the whole character.'
-      : `Memory: strokes 1–${level - 1} are hidden; later strokes still show a guide.`
+      : level > strokeCount
+        ? 'Final memory: draw every stroke with no guide.'
+        : `Memory: strokes 1–${level - 1} are hidden; later strokes still show a guide.`
 
   return (
     <div className="trace-pad">
@@ -1432,8 +1575,12 @@ export default function TracePad({
               title={
                 unlocked
                   ? beaten
-                    ? `Level ${L} (beaten) — tap to review`
-                    : `Level ${L}`
+                    ? L > strokeCount
+                      ? `Final memory (beaten) — tap to review`
+                      : `Level ${L} (beaten) — tap to review`
+                    : L > strokeCount
+                      ? 'Final memory — all strokes, no guide'
+                      : `Level ${L}`
                   : `Beat level ${L - 1} to unlock`
               }
             >
@@ -1464,6 +1611,15 @@ export default function TracePad({
             Replay demo
           </button>
         )}
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={onUndoStroke}
+          disabled={phase !== 'writing' || gestureCount === 0}
+          title="Remove the last pen stroke"
+        >
+          Undo stroke
+        </button>
         <button
           type="button"
           className="btn btn-ghost"

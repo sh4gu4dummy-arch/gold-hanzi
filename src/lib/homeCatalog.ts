@@ -69,11 +69,22 @@ export function buildBands(
   })
 }
 
-export function strokeLevelCount(character: string): number {
+/** Raw Make-Me-a-Hanzi stroke count (guides / grading). */
+export function rawStrokeCount(character: string): number {
   return STROKE_DATA[character]?.strokes.length ?? 0
 }
 
-/** True when every stroke-level for this character is beaten. */
+/**
+ * Practice levels per character: one progressive-memory level per stroke,
+ * plus one final all-strokes memory level (no guide).
+ * levelCount = strokeCount + 1 when strokeCount > 0.
+ */
+export function strokeLevelCount(character: string): number {
+  const n = rawStrokeCount(character)
+  return n > 0 ? n + 1 : 0
+}
+
+/** True when every practice level for this character is beaten (incl. final memory). */
 export function isCharacterCleared(character: string): boolean {
   const n = strokeLevelCount(character)
   if (n <= 0) return false

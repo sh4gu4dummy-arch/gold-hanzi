@@ -49,6 +49,15 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-18 — Undo stroke + final all-strokes memory (v0.011)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `TracePad.tsx`, `homeCatalog.ts`, `Practice.tsx`, `version.ts`, `README.md`
+
+- **Undo stroke:** removes last completed pen gesture (pen-down→up); updates ink store + grading mask; disabled when empty / not writing.
+- **Final level:** `levelCount = strokeCount + 1` — last level is full-character memory (no guides). Old beaten levels kept; new level additive for clear/unlock.
+
+
 ### 2026-09-18 — Theme icons, lesson UX, keep green Guide (v0.010)
 
 **Who:** gold-hanzi (repo Grok)  

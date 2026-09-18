@@ -3,7 +3,7 @@ import { Link, Navigate, useParams } from 'react-router-dom'
 import ThemeToggle from '../components/ThemeToggle'
 import TracePad, { DEFAULT_ACCENT } from '../components/TracePad'
 import { CHARACTERS, getCharacter } from '../data/characters'
-import { STROKE_DATA } from '../data/strokeData'
+import { strokeLevelCount } from '../lib/homeCatalog'
 import { clearCharProgress, getCharProgress } from '../lib/progress'
 import type { CharProgress } from '../lib/progress'
 import { APP_VERSION } from '../version'
@@ -12,9 +12,7 @@ export default function Practice() {
   const { id = '' } = useParams()
   const entry = getCharacter(id)
 
-  const levelCount = entry
-    ? (STROKE_DATA[entry.character]?.strokes.length ?? 0)
-    : 0
+  const levelCount = entry ? strokeLevelCount(entry.character) : 0
 
   const [progressByChar, setProgressByChar] = useState<
     Record<string, CharProgress>
