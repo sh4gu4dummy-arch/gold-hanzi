@@ -3,8 +3,11 @@ import { defineConfig } from 'vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  // Cloudflare Pages serves at site root (e.g. gold-hanzi.pages.dev).
-  base: './',
+  // Absolute site-root base for Cloudflare Pages (gold-hanzi.pages.dev).
+  // Relative './' broke deep links: /practice/:id resolved assets to
+  // /practice/assets/... (HTML fallback). GH Pages overrides via
+  // `vite build --base=/gold-hanzi/` in .github/workflows/pages-main.yml.
+  base: '/',
   plugins: [react()],
   server: {
     allowedHosts: true,

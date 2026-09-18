@@ -49,6 +49,16 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-18 — Restore practice pad + CF base + TTS cues (v0.013)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `index.css`, `TracePad.tsx`, `vite.config.ts`, `version.ts`, `README.md`
+
+- **Root cause (empty pad):** v0.012 density pass replaced `.page.practice { flex:1; min-height:0; … }` with a literal `PLACEHOLDER`, breaking the 100dvh flex chain. `.trace-stage` sized with `min(100cqw, 100cqh, …)` then collapsed to 0×0 (black void, no hit target).
+- **Fix:** restore `.page.practice`; size the stage with `width:min(100%,520px)` + `max-height:100%` + `aspect-ratio` (no cqh). ResizeObserver skips no-op/degenerate sizes and repaints guide after a real resize.
+- **CF deep links:** default Vite `base: '/'` (absolute) so `/practice/:id` does not resolve assets under `/practice/assets/`. GH Pages still builds with `--base=/gold-hanzi/` + `404.html`.
+- **Sound:** speak on level start (`runDemoThenWrite`), level complete (`finishPass`), and manual glyph / Sound-on tap.
+
 ### 2026-09-18 — Next character, practice density, Mandarin TTS (v0.012)
 
 **Who:** gold-hanzi (repo Grok)  

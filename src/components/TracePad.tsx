@@ -579,22 +579,21 @@ export default function TracePad({
   showMyStrokesRef.current = showMyStrokes
   demoEnabledRef.current = demoEnabled
 
-  // Speak once when entering a character (Sound on + Chinese voice available).
+  /** Speak character when Sound is on; surfaces no-voice note. */
+  const maybeSpeak = useCallback(async () => {
+    if (!getSoundEnabled()) return
+    const result: SpeakResult = await speakHanzi(character)
+    if (result === 'no-voice') {
+      setVoiceNote('No Mandarin voice on this device — Sound skipped.')
+    } else if (result === 'ok') {
+      setVoiceNote(null)
+    }
+  }, [character])
+
+  // Cancel in-flight TTS when leaving this character.
   useEffect(() => {
-    let cancelled = false
     setVoiceNote(null)
-    if (!getSoundEnabled()) return () => { cancelled = true }
-
-    void (async () => {
-      const result: SpeakResult = await speakHanzi(character)
-      if (cancelled) return
-      if (result === 'no-voice') {
-        setVoiceNote('No Mandarin voice on this device — Sound skipped.')
-      }
-    })()
-
     return () => {
-      cancelled = true
       cancelSpeech()
     }
   }, [character])
@@ -956,6 +955,7 @@ export default function TracePad({
 
     const beaten = markLevelBeaten(character, levelRef.current, inkDataUrl)
     notifyProgress(beaten)
+    void maybeSpeak()
     onDone?.()
 
     clearAutoAdvance()
@@ -982,6 +982,7 @@ export default function TracePad({
     character,
     clearAutoAdvance,
     enterReviewMode,
+    maybeSpeak,
     notifyProgress,
     onDone,
     paintGuide,
@@ -1033,6 +1034,7 @@ export default function TracePad({
       const host = writerHostRef.current
       if (!writer || !host || !strokeData) return
 
+      void maybeSpeak()
       clearAutoAdvance()
       doneRef.current = false
       setLiveGrade(null)
@@ -1084,6 +1086,7 @@ export default function TracePad({
       clearInkCanvas,
       enterWritingAfterDemo,
       hideWriterHost,
+      maybeSpeak,
       resizeCanvases,
       strokeData,
     ],
@@ -1190,13 +1193,21 @@ export default function TracePad({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [character, accent])
 
-  // Resize observer: rebuild canvases + mask while writing.
+  // Resize observer: rebuild canvases when the stage size actually changes.
+  // Skip no-op / degenerate sizes so layout recovery does not wipe ink+guide.
+  const lastStageSizeRef = useRef(0)
   useEffect(() => {
     const wrap = wrapRef.current
+    const slot = wrap?.parentElement
     if (!wrap) return
     const observer = new ResizeObserver(() => {
-      const writer = writerRef.current
       const size = stageCssSize()
+      // Ignore collapsed layout (density flex bug / first paint) and no-ops.
+      if (size <= 8) return
+      if (size === lastStageSizeRef.current) return
+      lastStageSizeRef.current = size
+
+      const writer = writerRef.current
       writer?.updateDimensions({
         width: size,
         height: size,
@@ -1204,7 +1215,14 @@ export default function TracePad({
       })
       resizeCanvases()
       if (phase === 'writing' && !doneRef.current) {
-        void rebuildMask().then(() => clearInkCanvas())
+        // Real size change: mask must match new pixels. Clearing ink is intentional
+        // for geometry, but we always repaint the guide afterward (not blank).
+        void rebuildMask().then(() => {
+          clearInkCanvas()
+          if (!showMyStrokesRef.current) {
+            paintGuide(levelRef.current, null)
+          }
+        })
       } else if (phase === 'passed') {
         // resizeCanvases() clears pixels — always repaint green Guide.
         const done =
@@ -1224,9 +1242,15 @@ export default function TracePad({
             true,
           )
         }
+      } else if (phase === 'demo' || phase === 'loading') {
+        // Ensure guide host dimensions stay in sync as layout settles.
+        if (!showMyStrokesRef.current && strokeData) {
+          paintGuide(levelRef.current, null)
+        }
       }
     })
     observer.observe(wrap)
+    if (slot) observer.observe(slot)
     return () => observer.disconnect()
   }, [
     phase,
@@ -1236,6 +1260,7 @@ export default function TracePad({
     resizeCanvases,
     clearInkCanvas,
     restoreInkFromDataUrl,
+    strokeData,
   ])
 
   const selectLevel = (nextLevel: number) => {
@@ -1426,14 +1451,7 @@ export default function TracePad({
       setVoiceNote(null)
       return
     }
-    void (async () => {
-      const result = await speakHanzi(character)
-      if (result === 'no-voice') {
-        setVoiceNote('No Mandarin voice on this device — Sound skipped.')
-      } else {
-        setVoiceNote(null)
-      }
-    })()
+    void maybeSpeak()
   }
 
   const toggleShowMyStrokes = () => {
@@ -1472,7 +1490,7 @@ export default function TracePad({
 
   const memoryHint =
     level <= 1
-      ? 'Full guide visible — trace the whole character.'
+      ? 'Level 1: full stroke-path guide — trace the whole character.'
       : level > strokeCount
         ? 'Final memory: draw every stroke with no guide.'
         : `Memory: strokes 1–${level - 1} are hidden; later strokes still show a guide.`

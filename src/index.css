@@ -96,7 +96,14 @@ a {
   gap: 14px;
 }
 
-PLACEHOLDER
+.page.practice {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  gap: 6px;
+  overflow: hidden;
+}
 
 .home-header,
 .practice-bar {
@@ -539,17 +546,15 @@ h1 {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Size container so the pad can take min(slotW, slotH). */
-  container-type: size;
 }
 
 .trace-stage {
   --accent: #7c5cbf;
   position: relative;
-  /* Strict max square inside the slot — never flex-grow into a tall rectangle. */
+  /* Max square in the flex slot via width + max-height (no cqh — 0cqh → 0×0). */
   flex: 0 0 auto;
   box-sizing: border-box;
-  width: min(100cqw, 100cqh, 520px);
+  width: min(100%, 520px);
   max-width: 100%;
   aspect-ratio: 1 / 1;
   height: auto;
@@ -973,7 +978,7 @@ h1 {
 
 @media (min-width: 640px) and (min-height: 800px) {
   .trace-stage {
-    width: min(100cqw, 100cqh, 520px);
+    width: min(100%, 520px);
   }
 
   .btn {

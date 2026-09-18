@@ -30,7 +30,7 @@ npm run preview -- --host 0.0.0.0 --port 5173
 5. **Final level (stroke count + 1):** draw the whole character from memory — no stroke guides.
 6. Draw freely on the pad. Use **Undo stroke** to remove the last pen gesture. A level is beaten only when the **app** grades a pass (per-stroke median samples + end-of-stroke) — then it auto-finishes.
 7. Bottom pips select/retry levels; unlocking is sequential (beat L1 to unlock L2). Progress persists in `localStorage`.
-8. After every level of a character is cleared (including the final memory level), **Next character** advances in the current HSK view order (Strict unlock respected). Sound (🔊) speaks the character in Mandarin via Web Speech when a zh-CN voice is available.
+8. After every level of a character is cleared (including the final memory level), **Next character** advances in the current HSK view order (Strict unlock respected). Sound speaks on level start/complete and on glyph / 🔊 tap (Mandarin Web Speech when a zh-CN voice is available).
 
 ## Grading
 
