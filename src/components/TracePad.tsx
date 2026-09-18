@@ -24,6 +24,10 @@ import {
 } from '../lib/progress'
 import type { CharProgress } from '../lib/progress'
 import { getDemoEnabled, setDemoEnabled } from '../lib/demoPref'
+import { getSoundEnabled, setSoundEnabled } from '../lib/soundPref'
+import { cancelSpeech, speakHanzi } from '../lib/speak'
+import type { SpeakResult } from '../lib/speak'
+import { Link } from 'react-router-dom'
 
 export const DEFAULT_ACCENT = '#7C5CBF'
 /** Guide path fill when a stroke passes median grading (hit fraction + end band). */
@@ -34,11 +38,24 @@ const GUIDE_ANIM_SPEED = 0.45
 const GUIDE_HIGHLIGHT_SPEED = 0.5
 const AUTO_ADVANCE_MS = 1000
 
+type NextCharacterInfo = {
+  id: string
+  character: string
+  pinyin: string
+}
+
 type TracePadProps = {
   character: string
   accent?: string
   onDone?: () => void
   onProgressChange?: (progress: CharProgress, levelCount: number) => void
+  /**
+   * When all levels of this character are cleared:
+   * - object → Next character button
+   * - null → end-of-list / all caught up
+   * - undefined → still working through levels (hide next-char UI)
+   */
+  nextCharacter?: NextCharacterInfo | null
 }
 
 type Phase = 'loading' | 'demo' | 'writing' | 'passed'
@@ -510,6 +527,7 @@ export default function TracePad({
   accent = DEFAULT_ACCENT,
   onDone,
   onProgressChange,
+  nextCharacter,
 }: TracePadProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const writerHostRef = useRef<HTMLDivElement>(null)
@@ -551,6 +569,8 @@ export default function TracePad({
   /** false (default): guides on, hide completed hand ink. true: ink only. */
   const [showMyStrokes, setShowMyStrokes] = useState(false)
   const [demoEnabled, setDemoEnabledState] = useState(() => getDemoEnabled())
+  const [soundEnabled, setSoundEnabledState] = useState(() => getSoundEnabled())
+  const [voiceNote, setVoiceNote] = useState<string | null>(null)
   /** Completed pen gestures (pen-down→up) this writing attempt — for Undo. */
   const gestureStackRef = useRef<InkSnapshot[]>([])
   const [gestureCount, setGestureCount] = useState(0)
@@ -558,6 +578,26 @@ export default function TracePad({
   levelRef.current = level
   showMyStrokesRef.current = showMyStrokes
   demoEnabledRef.current = demoEnabled
+
+  // Speak once when entering a character (Sound on + Chinese voice available).
+  useEffect(() => {
+    let cancelled = false
+    setVoiceNote(null)
+    if (!getSoundEnabled()) return () => { cancelled = true }
+
+    void (async () => {
+      const result: SpeakResult = await speakHanzi(character)
+      if (cancelled) return
+      if (result === 'no-voice') {
+        setVoiceNote('No Mandarin voice on this device — Sound skipped.')
+      }
+    })()
+
+    return () => {
+      cancelled = true
+      cancelSpeech()
+    }
+  }, [character])
 
   const clearAutoAdvance = useCallback(() => {
     if (autoAdvanceTimerRef.current != null) {
@@ -1377,6 +1417,25 @@ export default function TracePad({
     demoEnabledRef.current = next
   }
 
+  const toggleSoundEnabled = () => {
+    const next = !soundEnabled
+    setSoundEnabled(next)
+    setSoundEnabledState(next)
+    if (!next) {
+      cancelSpeech()
+      setVoiceNote(null)
+      return
+    }
+    void (async () => {
+      const result = await speakHanzi(character)
+      if (result === 'no-voice') {
+        setVoiceNote('No Mandarin voice on this device — Sound skipped.')
+      } else {
+        setVoiceNote(null)
+      }
+    })()
+  }
+
   const toggleShowMyStrokes = () => {
     const next = !showMyStrokesRef.current
     setShowMyStrokes(next)
@@ -1455,29 +1514,9 @@ export default function TracePad({
               </span>
             </div>
           )}
-          {phase !== 'passed' && (
-            <button
-              type="button"
-              className={`show-strokes-toggle${demoEnabled ? ' is-on' : ''}`}
-              onClick={toggleDemoEnabled}
-              aria-pressed={demoEnabled}
-              title="Animated stroke-order Demo"
-            >
-              {demoEnabled ? 'Demo on' : 'Demo off'}
-            </button>
-          )}
-          {(phase === 'writing' || phase === 'passed') && (
-            <button
-              type="button"
-              className={`show-strokes-toggle${showMyStrokes ? ' is-on' : ''}`}
-              onClick={toggleShowMyStrokes}
-              aria-pressed={showMyStrokes}
-            >
-              {showMyStrokes ? 'Show guides' : 'Show my strokes'}
-            </button>
-          )}
         </div>
       )}
+
 
       <div className="trace-stage-slot">
       <div
@@ -1591,11 +1630,74 @@ export default function TracePad({
         })}
       </div>
 
+      <div
+        className="trace-toolbar"
+        role="toolbar"
+        aria-label="Practice controls"
+      >
+        <button
+          type="button"
+          className={`icon-btn${demoEnabled ? ' is-on' : ''}`}
+          onClick={toggleDemoEnabled}
+          aria-pressed={demoEnabled}
+          aria-label={demoEnabled ? 'Demo on' : 'Demo off'}
+          title="Animated stroke-order Demo"
+        >
+          <span aria-hidden="true">{demoEnabled ? '▶' : '⏸'}</span>
+        </button>
+        <button
+          type="button"
+          className={`icon-btn${showMyStrokes ? ' is-on' : ''}`}
+          onClick={toggleShowMyStrokes}
+          aria-pressed={showMyStrokes}
+          aria-label={showMyStrokes ? 'Show guides' : 'Show my strokes'}
+          title={showMyStrokes ? 'Show guides' : 'Show my strokes'}
+          disabled={phase !== 'writing' && phase !== 'passed'}
+        >
+          <span aria-hidden="true">{showMyStrokes ? '✎' : '☰'}</span>
+        </button>
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={onUndoStroke}
+          disabled={phase !== 'writing' || gestureCount === 0}
+          aria-label="Undo stroke"
+          title="Remove the last pen stroke"
+        >
+          <span aria-hidden="true">↶</span>
+        </button>
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={onClear}
+          disabled={phase !== 'writing'}
+          aria-label="Clear"
+          title="Clear ink"
+        >
+          <span aria-hidden="true">⌫</span>
+        </button>
+        <button
+          type="button"
+          className={`icon-btn${soundEnabled ? ' is-on' : ''}`}
+          onClick={toggleSoundEnabled}
+          aria-pressed={soundEnabled}
+          aria-label={soundEnabled ? 'Sound on' : 'Sound off'}
+          title={soundEnabled ? 'Sound on' : 'Sound off'}
+        >
+          <span aria-hidden="true">{soundEnabled ? '🔊' : '🔇'}</span>
+        </button>
+      </div>
+      {voiceNote && (
+        <p className="trace-voice-note" role="status">
+          {voiceNote}
+        </p>
+      )}
+
       <div className="trace-actions">
         {phase === 'demo' ? (
           <button
             type="button"
-            className="btn btn-primary"
+            className="btn btn-primary btn-compact"
             onClick={skipGuide}
             disabled={!!loadError}
           >
@@ -1604,40 +1706,37 @@ export default function TracePad({
         ) : (
           <button
             type="button"
-            className="btn btn-ghost"
+            className="btn btn-ghost btn-compact"
             onClick={replayGuide}
             disabled={phase === 'loading' || !!loadError || !demoEnabled}
           >
-            Replay demo
+            Replay
           </button>
         )}
-        <button
-          type="button"
-          className="btn btn-ghost"
-          onClick={onUndoStroke}
-          disabled={phase !== 'writing' || gestureCount === 0}
-          title="Remove the last pen stroke"
-        >
-          Undo stroke
-        </button>
-        <button
-          type="button"
-          className="btn btn-ghost"
-          onClick={onClear}
-          disabled={phase !== 'writing'}
-        >
-          Clear
-        </button>
         {phase === 'passed' && level < levelCount && (
           <button
             type="button"
-            className="btn btn-primary"
+            className="btn btn-primary btn-compact"
             onClick={goNextLevel}
             disabled={!isLevelUnlocked(character, level + 1)}
           >
             Next level
           </button>
         )}
+        {nextCharacter !== undefined && (
+            nextCharacter ? (
+              <Link
+                className="btn btn-primary btn-compact next-char-btn"
+                to={`/practice/${nextCharacter.id}`}
+              >
+                Next character · {nextCharacter.character}
+              </Link>
+            ) : (
+              <Link className="btn btn-ghost btn-compact" to="/">
+                All caught up
+              </Link>
+            )
+          )}
       </div>
 
       <p className="trace-hint">

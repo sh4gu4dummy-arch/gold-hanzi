@@ -49,6 +49,15 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-18 — Next character, practice density, Mandarin TTS (v0.012)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `Practice.tsx`, `TracePad.tsx`, `homeCatalog.ts`, `soundPref.ts`, `speak.ts`, `index.css`, `version.ts`, `README.md`
+
+- **Next character:** after all levels cleared, CTA navigates to next unlocked id in `entriesForView` / Strict unlock order; end state when none.
+- **Density:** compact practice chrome; pad sized from leftover `100dvh`; icon toolbar (Demo / strokes / Undo / Clear / Sound).
+- **TTS:** Sound on/off in localStorage (default on); speak on character entry with best zh-CN/zh-Hans voice; no English fallback.
+
 ### 2026-09-18 — Undo stroke + final all-strokes memory (v0.011)
 
 **Who:** gold-hanzi (repo Grok)  

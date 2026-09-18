@@ -117,3 +117,23 @@ export function bandProgress(entries: CharacterEntry[]): {
   }
   return { cleared, total: entries.length }
 }
+
+/**
+ * Next unlocked character after `currentId` in the flat HSK view order
+ * (same order as home / Strict unlock). Skips locked entries. Null if none.
+ */
+export function nextUnlockedEntry(
+  currentId: string,
+  ordered: CharacterEntry[],
+  mode: DifficultyMode,
+): CharacterEntry | null {
+  const idx = ordered.findIndex((e) => e.id === currentId)
+  if (idx < 0) return null
+  for (let i = idx + 1; i < ordered.length; i++) {
+    const candidate = ordered[i]!
+    if (isCharacterUnlocked(candidate, ordered, mode)) {
+      return candidate
+    }
+  }
+  return null
+}

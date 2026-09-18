@@ -76,13 +76,14 @@ a {
 
 /* Practice: tight mobile portrait, one viewport tall */
 #root:has(.page.practice) {
-  padding: 8px 12px;
+  padding: 4px 10px 6px;
   min-height: 100dvh;
   height: 100dvh;
   max-height: 100dvh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
 }
 
 .page {
@@ -95,14 +96,7 @@ a {
   gap: 14px;
 }
 
-.page.practice {
-  flex: 1;
-  min-height: 0;
-  height: 100%;
-  max-height: 100%;
-  gap: 8px;
-  overflow: hidden;
-}
+PLACEHOLDER
 
 .home-header,
 .practice-bar {
@@ -243,27 +237,70 @@ h1 {
 .practice-bar {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0;
   flex-shrink: 0;
 }
 
+.practice-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.practice-bar-row .practice-meta {
+  flex: 1;
+  min-width: 0;
+}
+
 .practice .back-link {
-  font-size: 13px;
+  font-size: 18px;
+  line-height: 1;
+  padding: 4px 2px;
+  flex-shrink: 0;
+  text-decoration: none;
 }
 
 .practice .practice-meta h1 {
-  font-size: clamp(22px, 5.5vw, 32px);
-  line-height: 1.15;
+  font-size: clamp(20px, 5vw, 28px);
+  line-height: 1.1;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.practice-glyph-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+}
+
+.practice-glyph-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .practice .practice-glyph {
-  margin-right: 8px;
+  margin-right: 0;
 }
 
+.practice .practice-meta-sub,
 .practice .practice-meta p {
-  margin: 2px 0 0;
-  font-size: 13px;
-  line-height: 1.35;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.25;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .back-link {
@@ -380,6 +417,80 @@ h1 {
   background: var(--accent-soft);
 }
 
+.trace-toolbar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  width: min(100%, 520px);
+  margin: 0 auto;
+}
+
+.icon-btn {
+  appearance: none;
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.icon-btn:hover:not(:disabled),
+.icon-btn:focus-visible {
+  color: var(--accent-ink);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+  outline: none;
+}
+
+.icon-btn.is-on {
+  color: var(--accent-ink);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  background: var(--accent-soft);
+}
+
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.trace-voice-note {
+  margin: 0 auto;
+  max-width: 520px;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.next-char-banner {
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.next-char-btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.next-caught-up {
+  margin: 0;
+  text-align: center;
+}
+
+
 
 .trace-actions-guide {
   flex-wrap: wrap;
@@ -416,7 +527,7 @@ h1 {
 .trace-pad {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
   flex: 1;
   min-height: 0;
 }
@@ -600,8 +711,15 @@ h1 {
   display: flex;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
+}
+
+.trace-actions .btn-compact {
+  min-width: 0;
+  min-height: 32px;
+  padding: 4px 12px;
+  font-size: 12px;
 }
 
 .btn {
@@ -780,49 +898,76 @@ h1 {
 }
 
 
-@media (max-height: 750px) {
+@media (max-height: 850px) {
+  .practice .practice-meta-sub,
   .practice .practice-meta p {
     display: none;
   }
 
   .trace-hint,
-  .next-hint {
+  .next-hint:not(.next-caught-up),
+  .practice-wipe-row,
+  .next-char-banner {
     display: none;
   }
 
   .practice-bar {
-    gap: 2px;
+    gap: 0;
   }
 
   .practice .practice-meta h1 {
-    font-size: clamp(20px, 5vw, 28px);
+    font-size: clamp(18px, 4.5vw, 24px);
   }
 
   .stroke-progress-label {
     font-size: 11px;
   }
 
+  .stroke-progress {
+    gap: 2px;
+  }
+
   .grade-meter {
     font-size: 11px;
+  }
+
+  .level-pip {
+    padding: 2px 4px;
+    min-width: 24px;
   }
 
   .level-pip-num {
     font-size: 10px;
   }
 
+  .level-pip-dot {
+    width: 10px;
+    height: 10px;
+  }
+
+  .icon-btn {
+    width: 34px;
+    height: 34px;
+    font-size: 15px;
+  }
+
   .btn {
-    min-width: 80px;
-    min-height: 36px;
-    padding: 6px 12px;
-    font-size: 13px;
+    min-width: 72px;
+    min-height: 32px;
+    padding: 4px 10px;
+    font-size: 12px;
   }
 
   .trace-stage {
-    border-radius: 16px;
+    border-radius: 14px;
   }
 
   .tianzige {
-    inset: 12px;
+    inset: 10px;
+  }
+
+  .trace-pad {
+    gap: 3px;
   }
 }
 
