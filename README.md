@@ -1,6 +1,6 @@
 # 汉字描红 · Chinese Trace
 
-A small handwriting practice app for the 20 most common Simplified Chinese characters. Tap a character, watch a slow stroke-order guide, then freehand-trace until the stroke-centric grader passes.
+A handwriting practice app for classic HSK 1–2 Simplified Chinese characters (home grouped by HSK bands and lessons). Tap a character, watch a slow stroke-order guide, then freehand-trace until the stroke-centric grader passes.
 
 **App Builder / Grok Bot handoff:** [GROK_APP_BUILDER.md](./GROK_APP_BUILDER.md) — notes from Grok App Builder for the other devs. Newest entry first.
 
@@ -23,7 +23,7 @@ npm run preview -- --host 0.0.0.0 --port 5173
 
 ## Usage
 
-1. Homepage lists 的 一 是 了 我 不 在 人 有 他 (progress pips show levels beaten).
+1. Homepage groups characters by HSK band → ~10-char lessons (accordion). Toggles: classic HSK 1–6 vs HSK 3.0 (regroup only), Strict vs Dev unlocked.
 2. Tap a tile to open practice. **Level count = stroke count** for that character.
 3. **Level 1:** full stroke-path guide stays visible while you write.
 4. **Level k (k>1):** after a slow whole-character demo, strokes 1..(k−1) are hidden (memory); later strokes still show a path guide.

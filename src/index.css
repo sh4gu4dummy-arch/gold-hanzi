@@ -962,3 +962,195 @@ h1 {
   user-select: none;
   white-space: nowrap;
 }
+
+/* —— Home Option C: HSK accordion + lessons (mobile-first) —— */
+.page.home {
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.home-header-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(8px);
+  padding-bottom: 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+}
+
+.home-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.home-seg {
+  display: flex;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.home-seg-btn {
+  flex: 1;
+  min-height: 34px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 8px;
+}
+
+.home-seg-btn.is-on {
+  background: color-mix(in srgb, var(--accent) 88%, black);
+  color: #fff;
+}
+
+.home-bands {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 0 24px;
+}
+
+.home-empty {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 12px 0;
+}
+
+.hsk-band {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.hsk-band-head,
+.hsk-lesson-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  padding: 12px 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.hsk-band-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.hsk-band-meta,
+.hsk-lesson-meta {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.hsk-band-chev {
+  color: var(--accent);
+  width: 1em;
+  text-align: center;
+}
+
+.hsk-band-body {
+  border-top: 1px solid var(--line);
+  padding: 4px 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hsk-lesson {
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg) 55%, var(--surface));
+}
+
+.hsk-lesson-head {
+  padding: 10px 10px;
+  font-size: 13px;
+}
+
+.hsk-lesson-head span:first-child {
+  flex: 1;
+}
+
+.char-grid-compact {
+  padding: 0 8px 10px;
+  gap: 8px;
+}
+
+.char-grid-compact .char-tile {
+  min-height: 0;
+  padding: 10px 6px 8px;
+  gap: 2px;
+}
+
+.char-grid-compact .char-glyph {
+  font-size: clamp(36px, 9vw, 48px);
+}
+
+.char-grid-compact .char-pinyin {
+  font-size: 13px;
+}
+
+.char-grid-compact .char-meaning {
+  display: none;
+}
+
+.char-hsk-badge {
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--accent-ink);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-radius: 999px;
+  padding: 2px 7px;
+}
+
+.char-tile-locked {
+  opacity: 0.55;
+  cursor: not-allowed;
+  position: relative;
+}
+
+.char-tile-locked .char-glyph.is-muted {
+  color: var(--muted);
+}
+
+.char-lock {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 12px;
+}
+
+@media (min-width: 640px) {
+  .char-grid-compact {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .home-toggles {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .home-seg {
+    width: auto;
+    min-width: 220px;
+  }
+}

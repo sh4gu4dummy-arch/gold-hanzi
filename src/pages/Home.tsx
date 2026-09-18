@@ -1,13 +1,45 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import ThemeToggle from '../components/ThemeToggle'
 import { CHARACTERS } from '../data/characters'
-import { STROKE_DATA } from '../data/strokeData'
+import type { CharacterEntry } from '../data/characters'
+import {
+  bandProgress,
+  buildBands,
+  entriesForView,
+  isCharacterUnlocked,
+  strokeLevelCount,
+} from '../lib/homeCatalog'
+import {
+  getDifficultyMode,
+  getHskView,
+  setDifficultyMode,
+  setHskView,
+} from '../lib/homePref'
+import type { DifficultyMode, HskView } from '../lib/homePref'
 import { beatenCount, clearAllProgress } from '../lib/progress'
 import { APP_VERSION } from '../version'
 
 export default function Home() {
   const [revision, setRevision] = useState(0)
+  const [hskView, setHskViewState] = useState<HskView>(() => getHskView())
+  const [difficulty, setDifficultyState] = useState<DifficultyMode>(() =>
+    getDifficultyMode(),
+  )
+  const [openBand, setOpenBand] = useState<number | null>(null)
+  const [openLesson, setOpenLesson] = useState<string | null>(null)
+
+  const bands = useMemo(() => buildBands(CHARACTERS, hskView), [hskView, revision])
+  const ordered = useMemo(
+    () => entriesForView(CHARACTERS, hskView),
+    [hskView, revision],
+  )
+
+  // Default: first band + first lesson open
+  const activeBand = openBand ?? bands[0]?.level ?? null
+  const activeBandObj = bands.find((b) => b.level === activeBand) ?? bands[0]
+  const activeLessonId =
+    openLesson ?? activeBandObj?.lessons[0]?.id ?? null
 
   const handleWipeAll = () => {
     const ok = window.confirm(
@@ -18,62 +50,242 @@ export default function Home() {
     setRevision((n) => n + 1)
   }
 
+  const onHskView = (view: HskView) => {
+    setHskView(view)
+    setHskViewState(view)
+    setOpenBand(null)
+    setOpenLesson(null)
+  }
+
+  const onDifficulty = (mode: DifficultyMode) => {
+    setDifficultyMode(mode)
+    setDifficultyState(mode)
+  }
+
+  const toggleBand = (level: number) => {
+    setOpenBand((cur) => {
+      const next = (cur ?? bands[0]?.level) === level ? -1 : level
+      // -1 means all collapsed; null means default first
+      if (next === -1) {
+        setOpenLesson(null)
+        return -1
+      }
+      const band = bands.find((b) => b.level === next)
+      setOpenLesson(band?.lessons[0]?.id ?? null)
+      return next
+    })
+  }
+
+  const toggleLesson = (lessonId: string) => {
+    setOpenLesson((cur) => (cur === lessonId ? null : lessonId))
+  }
+
+  const resolvedBand =
+    activeBand === -1 ? null : (activeBand ?? bands[0]?.level ?? null)
+
   return (
     <main className="page home">
-      <header className="home-header">
+      <header className="home-header home-header-sticky">
         <div className="home-header-top">
           <div className="home-title-row">
             <h1>Gold Tracing</h1>
-            <span className="app-version" aria-label={`App version ${APP_VERSION}`}>
+            <span
+              className="app-version"
+              aria-label={`App version ${APP_VERSION}`}
+            >
               {APP_VERSION}
             </span>
           </div>
           <ThemeToggle />
         </div>
         <p className="lede home-lede">
-          Trace the 20 most common Simplified characters — one level per stroke.
+          Trace Simplified characters by HSK band — one practice level per
+          stroke. Mobile-first; open one lesson at a time.
         </p>
+
+        <div className="home-toggles" role="group" aria-label="Home options">
+          <div className="home-seg" role="group" aria-label="HSK syllabus">
+            <button
+              type="button"
+              className={`home-seg-btn${hskView === 'classic' ? ' is-on' : ''}`}
+              aria-pressed={hskView === 'classic'}
+              onClick={() => onHskView('classic')}
+            >
+              HSK 1–6
+            </button>
+            <button
+              type="button"
+              className={`home-seg-btn${hskView === 'v3' ? ' is-on' : ''}`}
+              aria-pressed={hskView === 'v3'}
+              onClick={() => onHskView('v3')}
+            >
+              HSK 3.0
+            </button>
+          </div>
+          <div className="home-seg" role="group" aria-label="Difficulty">
+            <button
+              type="button"
+              className={`home-seg-btn${difficulty === 'strict' ? ' is-on' : ''}`}
+              aria-pressed={difficulty === 'strict'}
+              onClick={() => onDifficulty('strict')}
+            >
+              Strict
+            </button>
+            <button
+              type="button"
+              className={`home-seg-btn${difficulty === 'dev' ? ' is-on' : ''}`}
+              aria-pressed={difficulty === 'dev'}
+              onClick={() => onDifficulty('dev')}
+            >
+              Dev unlocked
+            </button>
+          </div>
+        </div>
+
         <div className="home-wipe-all">
-          <button
-            type="button"
-            className="link-danger"
-            onClick={handleWipeAll}
-          >
+          <button type="button" className="link-danger" onClick={handleWipeAll}>
             Wipe all progress
           </button>
         </div>
       </header>
 
-      <ol className="char-grid" key={revision}>
-        {CHARACTERS.map((entry, index) => {
-          const strokes = STROKE_DATA[entry.character]?.strokes.length ?? 0
-          const cleared = beatenCount(entry.character)
+      <div className="home-bands" key={`${hskView}-${revision}`}>
+        {bands.length === 0 && (
+          <p className="home-empty">No characters in this HSK view yet.</p>
+        )}
+        {bands.map((band) => {
+          const expanded = resolvedBand === band.level
+          const prog = bandProgress(band.entries)
           return (
-            <li key={entry.id}>
-              <Link
-                className="char-tile"
-                to={`/practice/${entry.id}`}
-                aria-label={`Practice ${entry.character}, ${entry.pinyin}, ${entry.meaning}. ${cleared} of ${strokes} levels cleared.`}
+            <section
+              key={band.level}
+              className={`hsk-band${expanded ? ' is-open' : ''}`}
+            >
+              <button
+                type="button"
+                className="hsk-band-head"
+                aria-expanded={expanded}
+                onClick={() => toggleBand(band.level)}
               >
-                <span className="char-rank">{index + 1}</span>
-                <span className="char-glyph">{entry.character}</span>
-                <span className="char-pinyin">{entry.pinyin}</span>
-                <span className="char-meaning">{entry.meaning}</span>
-                {strokes > 0 && (
-                  <span className="char-levels" aria-hidden="true">
-                    {Array.from({ length: strokes }, (_, i) => (
-                      <span
-                        key={i}
-                        className={`char-level-dot${i < cleared ? ' is-on' : ''}`}
-                      />
-                    ))}
-                  </span>
-                )}
-              </Link>
-            </li>
+                <span className="hsk-band-title">{band.label}</span>
+                <span className="hsk-band-meta">
+                  {prog.cleared}/{prog.total}
+                </span>
+                <span className="hsk-band-chev" aria-hidden="true">
+                  {expanded ? '▾' : '▸'}
+                </span>
+              </button>
+              {expanded && (
+                <div className="hsk-band-body">
+                  {band.lessons.map((lesson) => {
+                    const lessonOpen = activeLessonId === lesson.id
+                    const lessonProg = bandProgress(lesson.entries)
+                    return (
+                      <div
+                        key={lesson.id}
+                        className={`hsk-lesson${lessonOpen ? ' is-open' : ''}`}
+                      >
+                        <button
+                          type="button"
+                          className="hsk-lesson-head"
+                          aria-expanded={lessonOpen}
+                          onClick={() => toggleLesson(lesson.id)}
+                        >
+                          <span>{lesson.label}</span>
+                          <span className="hsk-lesson-meta">
+                            {lessonProg.cleared}/{lesson.entries.length} ·{' '}
+                            {lesson.entries.length} chars
+                          </span>
+                          <span aria-hidden="true">
+                            {lessonOpen ? '▾' : '▸'}
+                          </span>
+                        </button>
+                        {lessonOpen && (
+                          <ol className="char-grid char-grid-compact">
+                            {lesson.entries.map((entry) => (
+                              <CharTile
+                                key={entry.id}
+                                entry={entry}
+                                hskView={hskView}
+                                unlocked={isCharacterUnlocked(
+                                  entry,
+                                  ordered,
+                                  difficulty,
+                                )}
+                              />
+                            ))}
+                          </ol>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </section>
           )
         })}
-      </ol>
+      </div>
     </main>
+  )
+}
+
+function CharTile({
+  entry,
+  hskView,
+  unlocked,
+}: {
+  entry: CharacterEntry
+  hskView: HskView
+  unlocked: boolean
+}) {
+  const strokes = strokeLevelCount(entry.character)
+  const cleared = beatenCount(entry.character)
+  const badge =
+    hskView === 'classic' ? entry.hskClassic : entry.hskV3
+
+  if (!unlocked) {
+    return (
+      <li>
+        <div
+          className="char-tile char-tile-locked"
+          aria-label={`${entry.character} locked — clear the previous character first`}
+        >
+          <span className="char-lock" aria-hidden="true">
+            🔒
+          </span>
+          <span className="char-glyph is-muted">{entry.character}</span>
+          <span className="char-pinyin">{entry.pinyin}</span>
+          {badge != null && (
+            <span className="char-hsk-badge">HSK {badge}</span>
+          )}
+        </div>
+      </li>
+    )
+  }
+
+  return (
+    <li>
+      <Link
+        className="char-tile"
+        to={`/practice/${entry.id}`}
+        aria-label={`Practice ${entry.character}, ${entry.pinyin}, ${entry.meaning}. ${cleared} of ${strokes} levels cleared.`}
+      >
+        <span className="char-glyph">{entry.character}</span>
+        <span className="char-pinyin">{entry.pinyin}</span>
+        {badge != null && (
+          <span className="char-hsk-badge">HSK {badge}</span>
+        )}
+        {strokes > 0 && (
+          <span className="char-levels" aria-hidden="true">
+            {Array.from({ length: strokes }, (_, i) => (
+              <span
+                key={i}
+                className={`char-level-dot${i < cleared ? ' is-on' : ''}`}
+              />
+            ))}
+          </span>
+        )}
+      </Link>
+    </li>
   )
 }

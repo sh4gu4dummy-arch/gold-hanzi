@@ -49,6 +49,17 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-18 — Home Option C + classic HSK 1–2 (v0.009)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `src/pages/Home.tsx`, `src/lib/homePref.ts`, `src/lib/homeCatalog.ts`, `src/data/characters.ts`, `src/data/strokeData.ts`, `src/data/strokes/*`, `src/index.css`
+
+- Mobile-first home: HSK accordion → ~10-char lessons (one lesson open at a time).
+- Toggles (localStorage): classic HSK 1–6 ↔ HSK 3.0 (regroup only); Strict ↔ Dev unlocked.
+- Progress stays per character (shared across HSK views).
+- Catalog expanded to classic HSK 1–2 characters with vendored stroke JSON (HSK 3.0 labels best-effort / incomplete OK).
+
+
 ### 2026-09-17 — Demo toggle + pen-up purple clear (v0.008)
 
 **Who:** gold-hanzi (repo Grok)  
