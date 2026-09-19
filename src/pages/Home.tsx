@@ -62,11 +62,17 @@ export default function Home() {
       return
     }
     setCatalogReady(isV3CatalogReady())
-    void ensureCatalogForView('v3').then(() => {
-      if (cancelled) return
-      setCatalogReady(true)
-      setCatalogTick((n) => n + 1)
-    })
+    void ensureCatalogForView('v3')
+      .then(() => {
+        if (cancelled) return
+        setCatalogReady(true)
+        setCatalogTick((n) => n + 1)
+      })
+      .catch(() => {
+        if (cancelled) return
+        // Stay on classic-ready shell rather than infinite “loading”.
+        setCatalogReady(true)
+      })
     return () => {
       cancelled = true
     }
@@ -120,7 +126,7 @@ export default function Home() {
   // Classic HSK 1 Lesson 1 is eager — always warm on home mount / start.
   // One classic lesson chunk; does not pull HSK 3.0 modules.
   useEffect(() => {
-    void ensureHsk1Lesson1Loaded()
+    void ensureHsk1Lesson1Loaded().catch(() => {})
   }, [])
 
   // Super-lazy strokes: only load geometry for open lessons in the *active*
@@ -132,7 +138,7 @@ export default function Home() {
     for (const band of bands) {
       for (const lesson of band.lessons) {
         if (!openLessons.has(lesson.id)) continue
-        void ensureLessonLoaded(lesson.entries, { preferV3 })
+        void ensureLessonLoaded(lesson.entries, { preferV3 }).catch(() => {})
         prefetchNextLesson(band.lessons, lesson.id, { preferV3 })
       }
     }

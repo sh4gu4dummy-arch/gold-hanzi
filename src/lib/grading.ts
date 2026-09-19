@@ -773,6 +773,62 @@ export function paintCapExceeded(painted: number, strokeArea: number): boolean {
   return painted > strokeArea * STROKE_PAINT_CAP
 }
 
+
+/**
+ * Whether stroke `si` independently meets median hit-fraction + end-band
+ * (same thresholds as evaluateGrade). Used for out-of-order detection.
+ */
+export function strokeMeetsPassCriteria(
+  mask: LetterMask,
+  si: number,
+): boolean {
+  const stroke = mask.mappedStrokes[si]
+  if (!stroke) return false
+  const samples = sampleStroke(stroke)
+  if (samples.length === 0) return true
+  const rad = strokeHitRadius(mask.dpr)
+  let hits = 0
+  let endSamples = 0
+  let endHits = 0
+  for (const p of samples) {
+    const hit = inkNear(mask, p.x, p.y, rad)
+    if (hit) hits++
+    if (p.t >= STROKE_END_T - 1e-9) {
+      endSamples++
+      if (hit) endHits++
+    }
+  }
+  const fracOk = hits / samples.length >= STROKE_COVER
+  const endNeed =
+    endSamples === 0
+      ? 0
+      : Math.max(endSamples >= 2 ? 2 : 1, Math.ceil(endSamples * 0.5))
+  const endOk = endSamples === 0 || endHits >= endNeed
+  return fracOk && endOk
+}
+
+/**
+ * If ink would complete a later stroke while an earlier one is still
+ * required, return the 1-based index of the active required stroke
+ * ("do stroke X first"). Otherwise null.
+ */
+export function outOfOrderRequiredStroke(
+  mask: LetterMask,
+  prevStrokeDone?: boolean[] | null,
+): number | null {
+  const n = mask.mappedStrokes.length
+  if (n <= 0) return null
+  const active = activeStrokeIndex(prevStrokeDone, n)
+  if (active >= n) return null
+  for (let si = active + 1; si < n; si++) {
+    if (strokeMeetsPassCriteria(mask, si)) {
+      return active + 1
+    }
+  }
+  return null
+}
+
+
 /**
  * Stroke-centric grade. When `prevStrokeDone` is provided, only the first
  * incomplete stroke (active) may newly pass — later strokes stay incomplete

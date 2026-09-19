@@ -915,11 +915,26 @@ h1 {
   gap: 8px;
   padding: 10px 14px;
   border-radius: 999px;
+  border: none;
   background: color-mix(in srgb, var(--accent) 92%, black);
   color: white;
+  font: inherit;
   font-weight: 600;
   pointer-events: none;
   animation: pop 0.28s ease;
+  cursor: default;
+}
+
+.trace-success.is-replay {
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 5;
+}
+
+.trace-success.is-replay:hover,
+.trace-success.is-replay:focus-visible {
+  filter: brightness(1.06);
+  outline: none;
 }
 
 .trace-check {

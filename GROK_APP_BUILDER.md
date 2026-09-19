@@ -49,6 +49,16 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-19 — Load retry, cleared replay, stroke order cues (v0.030)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `strokeData.ts`, `Home.tsx`, `Practice.tsx`, `TracePad.tsx`, `grading.ts`, `index.css`, `version.ts`, `_specs/trace-grading.md`
+
+- **First-load resilience:** lesson/HSK1 loads retry once; failed/empty classic chunks fall back to `ensureBandLoaded`; Home/Practice catch so dynamic-import failures never pageerror or stick on “Loading…”.
+- **Cleared replay:** passed overlay reads **“Level N cleared (click to replay)”** and re-runs that level’s demo/guide.
+- **Current-stroke markers:** start arrow + white median highlight only on the **active** stroke (not on done strokes).
+- **Out-of-order toast:** legitimate later-stroke progress → **“do stroke X first”**; 150% paint-cap on the active stroke still **try again**.
+
 ### 2026-09-19 — Snappy classic path; no HSK 3.0 leak (v0.029)
 
 **Who:** gold-hanzi (repo Grok)  

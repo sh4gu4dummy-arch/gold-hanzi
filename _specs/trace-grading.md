@@ -44,3 +44,17 @@ Path2D fill area (`strokeAreas[i]` from `buildLetterMask`), TracePad auto-stops 
 shows a **try again** toast, and restores the ink/grade baseline from when the stroke became
 active (earlier completed strokes’ green/progress kept).
 
+## Out-of-order toast (v0.030)
+
+If ink would independently complete a **later** stroke while an earlier stroke is
+still the active required stroke, TracePad toasts **“do stroke X first”**
+(X = 1-based active index) instead of a generic try-again for that case.
+The 150% paint-cap path still toasts **try again** when the scribble is on the
+active stroke (no out-of-order signal).
+
+## Current-stroke markers (v0.030)
+
+Stroke-start **arrow** and white median **highlight line** render only for the
+**active** (first incomplete) stroke. Already-done strokes keep the soft green
+underlay + tip ✓ — no arrow/highlight on them.
+

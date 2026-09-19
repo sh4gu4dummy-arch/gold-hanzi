@@ -58,6 +58,43 @@ function assignLessonData(data: Record<string, StrokeCharacterData>): void {
   Object.assign(STROKE_DATA, data)
 }
 
+/** One retry on transient dynamic-import / network failures. */
+async function withOneRetry(load: () => Promise<void>): Promise<void> {
+  try {
+    await load()
+  } catch {
+    await load()
+  }
+}
+
+/** Classic band 1–6 from lesson id like `hsk3-l12`. */
+function classicBandFromLessonId(lessonId: string): number | undefined {
+  const m = /^hsk(\d+)/.exec(lessonId)
+  if (!m) return undefined
+  const n = Number(m[1])
+  return n >= 1 && n <= 6 ? n : undefined
+}
+
+/** After a lesson load, fill any still-missing chars via classic band modules. */
+async function fallbackMissingToBands(
+  characters: readonly string[],
+): Promise<void> {
+  const missing = characters.filter((c) => c && !STROKE_DATA[c])
+  if (missing.length === 0) return
+  const bands = new Set<number>()
+  for (const c of missing) {
+    const band = CHAR_BANDS[c]
+    if (band != null && BAND_LOADERS[band]) bands.add(band)
+  }
+  for (const b of bands) {
+    try {
+      await ensureBandLoaded(b)
+    } catch {
+      /* ignore — callers check STROKE_DATA */
+    }
+  }
+}
+
 /** Load (once) one classic lesson chunk (~12 chars) into STROKE_DATA. */
 export function ensureClassicLessonLoaded(lessonId: string): Promise<void> {
   const key = lessonKey('classic', lessonId)
@@ -65,18 +102,32 @@ export function ensureClassicLessonLoaded(lessonId: string): Promise<void> {
   if (!p) {
     const modPath = `./strokeLessons/classic/${lessonId}.json`
     const loader = classicLessonModules[modPath]
-    if (!loader) {
-      p = Promise.resolve()
-    } else {
-      p = loader()
-        .then((mod) => {
-          assignLessonData(mod.default)
-        })
-        .catch((err) => {
-          lessonPromises.delete(key)
-          throw err
-        })
-    }
+    const band = classicBandFromLessonId(lessonId)
+    p = (async () => {
+      let assigned = 0
+      try {
+        if (loader) {
+          await withOneRetry(async () => {
+            const mod = await loader()
+            const data = mod.default ?? {}
+            assigned = Object.keys(data).length
+            assignLessonData(data)
+          })
+        }
+      } catch {
+        assigned = 0
+        lessonPromises.delete(key)
+      }
+      if (assigned === 0 && band != null) {
+        try {
+          await ensureBandLoaded(band)
+        } catch {
+          /* swallow */
+        }
+      }
+    })().catch(() => {
+      /* never reject to void Home callers */
+    })
     lessonPromises.set(key, p)
   }
   return p
@@ -92,18 +143,18 @@ export function ensureV3LessonLoaded(lessonId: string): Promise<void> {
   if (!p) {
     const modPath = `./strokeLessons/v3/${lessonId}.json`
     const loader = v3LessonModules[modPath]
-    if (!loader) {
-      p = Promise.resolve()
-    } else {
-      p = loader()
-        .then((mod) => {
-          assignLessonData(mod.default)
+    p = (async () => {
+      try {
+        if (!loader) return
+        await withOneRetry(async () => {
+          const mod = await loader()
+          assignLessonData(mod.default ?? {})
         })
-        .catch((err) => {
-          lessonPromises.delete(key)
-          throw err
-        })
-    }
+      } catch {
+        lessonPromises.delete(key)
+        /* swallow — callers may fall back via ensureCharactersLoaded */
+      }
+    })().catch(() => {})
     lessonPromises.set(key, p)
   }
   return p
@@ -168,12 +219,15 @@ export function ensureCharactersLoaded(
 ): Promise<void> {
   return Promise.all(characters.filter(Boolean).map(loadOneCharacter)).then(
     () => {},
+    () => {},
   )
 }
 
 /**
  * Load every character in a home lesson as **one** (or few) chunk request(s).
  * Uses classic lesson modules when `preferV3` is false; v3 modules otherwise.
+ * Retries once; classic path falls back to `ensureBandLoaded` if the chunk
+ * fails or leaves STROKE_DATA empty for the lesson entries.
  */
 export function ensureLessonLoaded(
   entries: readonly CharacterEntry[],
@@ -181,25 +235,60 @@ export function ensureLessonLoaded(
 ): Promise<void> {
   if (entries.length === 0) return Promise.resolve()
   const preferV3 = opts?.preferV3 === true
-  // All entries in a home lesson share one lesson id in that view.
+  const chars = entries.map((e) => e.character)
   const sample = entries[0]!.character
-  if (preferV3) {
-    const id = CHAR_V3_LESSON[sample]
-    if (id) return ensureV3LessonLoaded(id)
-  } else {
-    const id = CHAR_CLASSIC_LESSON[sample]
-    if (id) return ensureClassicLessonLoaded(id)
-  }
-  // Fallback: per-character resolution (still batches via shared promises).
-  return ensureCharactersLoaded(entries.map((e) => e.character))
+  return (async () => {
+    try {
+      if (preferV3) {
+        const id = CHAR_V3_LESSON[sample]
+        if (id) await ensureV3LessonLoaded(id)
+        else await ensureCharactersLoaded(chars)
+      } else {
+        const id = CHAR_CLASSIC_LESSON[sample]
+        if (id) await ensureClassicLessonLoaded(id)
+        else await ensureCharactersLoaded(chars)
+      }
+    } catch {
+      /* continue to fallbacks */
+    }
+    const missing = chars.filter((c) => c && !STROKE_DATA[c])
+    if (missing.length === 0) return
+    if (!preferV3) {
+      await fallbackMissingToBands(missing)
+    }
+    const still = chars.filter((c) => c && !STROKE_DATA[c])
+    if (still.length > 0) {
+      await ensureCharactersLoaded(still)
+    }
+  })().catch(() => {
+    /* no uncaught dynamic-import pageerror */
+  })
 }
 
 /**
  * Classic HSK 1 Lesson 1 — first 12 classic-band-1 catalog chars.
  * Eager on app start / home load (not lazy). One lesson chunk.
+ * Retries once; falls back to band 1 if the chunk fails or is empty.
  */
 export function ensureHsk1Lesson1Loaded(): Promise<void> {
   return ensureClassicLessonLoaded('hsk1-l1')
+    .then(async () => {
+      const probe = ['的', '一', '是', '不']
+      if (probe.some((c) => !STROKE_DATA[c])) {
+        try {
+          await ensureBandLoaded(1)
+        } catch {
+          /* ignore */
+        }
+      }
+    })
+    .catch(async () => {
+      try {
+        await ensureBandLoaded(1)
+      } catch {
+        /* ignore */
+      }
+    })
 }
 
 /** Prefetch the next lesson in the same band after `lessonId`. */
@@ -212,7 +301,7 @@ export function prefetchNextLesson(
   if (idx < 0) return
   const next = bandLessons[idx + 1]
   if (!next) return
-  void ensureLessonLoaded(next.entries, opts)
+  void ensureLessonLoaded(next.entries, opts).catch(() => {})
 }
 
 /** Classic HSK band for a character, if known. */

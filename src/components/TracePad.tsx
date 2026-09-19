@@ -20,6 +20,7 @@ import {
   evaluateGrade,
   hanziScale,
   inkWidthCss,
+  outOfOrderRequiredStroke,
   paintCapExceeded,
   stampInkSegment,
   stampPaintBitsSegment,
@@ -496,6 +497,8 @@ function drawStrokeGuides(
 
   const contentCenter = contentCenterFromMedians(medians)
 
+  const activeIdx = activeStrokeIndex(strokeDone, strokePaths.length)
+
   ctx.save()
   applyHanziTransform(ctx, cssSize, contentCenter)
   // Memory levels hide early incomplete guides, but a passed stroke always
@@ -506,24 +509,52 @@ function drawStrokeGuides(
     if (!done && !guideVisible) continue
     try {
       const path = new Path2D(strokePaths[i]!)
-      ctx.fillStyle = done ? doneFill : faintFill
+      const isActive = !done && i === activeIdx
+      ctx.fillStyle = done
+        ? doneFill
+        : isActive
+          ? hexToRgba(accent, 0.34)
+          : faintFill
       ctx.fill(path)
     } catch {
       // Ignore malformed path segments.
     }
   }
 
-  // Numbers/arrows only for strokes that still show a live guide.
+  // White highlight line along the current (active) stroke median only.
+  if (
+    activeIdx >= fromStroke &&
+    activeIdx < medians.length &&
+    !strokeDone?.[activeIdx]
+  ) {
+    const median = medians[activeIdx]
+    if (median && median.length >= 2) {
+      ctx.beginPath()
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.92)'
+      ctx.lineWidth = Math.max(3.2 / scale, u * 0.14)
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      ctx.moveTo(median[0]![0]!, median[0]![1]!)
+      for (let i = 1; i < median.length; i++) {
+        ctx.lineTo(median[i]![0]!, median[i]![1]!)
+      }
+      ctx.stroke()
+    }
+  }
+
+  // Numbers for incomplete live guides; arrow only on the active stroke.
   const markers = layoutGuideMarkers(medians, fromStroke, u)
   for (const m of markers) {
+    const done = !!strokeDone?.[m.strokeIndex]
+    if (done) continue
     // Fan may shift the mark; keep the stroke tangent so the arrow
     // still reads as writing direction, not the fan axis.
     const ox = m.ox + m.offx
     const oy = m.oy + m.offy
-    const done = !!strokeDone?.[m.strokeIndex]
-    const markColor = done ? DONE_STROKE_GREEN : accent
-    const numFill = done ? hexToRgba(DONE_STROKE_GREEN, 0.92) : markerFill
-    if (m.hasTangent) {
+    const isActive = m.strokeIndex === activeIdx
+    const markColor = accent
+    const numFill = markerFill
+    if (isActive && m.hasTangent) {
       drawGuideArrow(ctx, ox, oy, m.tx, m.ty, m.u, scale, markColor)
     }
     drawGuideNumber(
@@ -672,6 +703,7 @@ export default function TracePad({
       })
       .catch((err: unknown) => {
         if (cancelled) return
+        setStrokeData(undefined)
         setLoadError(
           err instanceof Error
             ? err.message
@@ -689,8 +721,8 @@ export default function TracePad({
   const [demoEnabled, setDemoEnabledState] = useState(() => getDemoEnabled())
   const [soundEnabled, setSoundEnabledState] = useState(() => getSoundEnabled())
   const [voiceNote, setVoiceNote] = useState<string | null>(null)
-  /** Short “try again” toast after 150% paint-cap reject. */
-  const [tryAgainToast, setTryAgainToast] = useState(false)
+  /** Short pad toast: “try again” (paint-cap) or “do stroke X first”. */
+  const [padToast, setPadToast] = useState<string | null>(null)
   /** Completed pen gestures (pen-down→up) this writing attempt — for Undo. */
   const gestureStackRef = useRef<InkSnapshot[]>([])
   const [gestureCount, setGestureCount] = useState(0)
@@ -888,14 +920,14 @@ export default function TracePad({
     return bits
   }, [])
 
-  const showTryAgainToast = useCallback(() => {
+  const showPadToast = useCallback((message: string) => {
     if (tryAgainTimerRef.current) {
       clearTimeout(tryAgainTimerRef.current)
     }
-    setTryAgainToast(true)
+    setPadToast(message)
     // Match CSS fade (~1.1s): shorter, sits above ink so it doesn't cover the stroke.
     tryAgainTimerRef.current = setTimeout(() => {
-      setTryAgainToast(false)
+      setPadToast(null)
       tryAgainTimerRef.current = null
     }, 1100)
   }, [])
@@ -1620,9 +1652,18 @@ export default function TracePad({
       }
       clearPaintBits()
       gesturePassedStrokeRef.current = false
-      showTryAgainToast()
+      const maskNow = maskRef.current
+      const ooo =
+        maskNow != null
+          ? outOfOrderRequiredStroke(maskNow, prevStrokeDoneRef.current)
+          : null
+      if (ooo != null) {
+        showPadToast(`do stroke ${ooo} first`)
+      } else {
+        showPadToast('try again')
+      }
     },
-    [applyInkSnapshot, clearPaintBits, showTryAgainToast],
+    [applyInkSnapshot, clearPaintBits, showPadToast],
   )
 
   /** Stamp grading ink + paint-coverage; return true if 150% cap tripped. */
@@ -1735,6 +1776,20 @@ export default function TracePad({
         /* ignore */
       }
       checkGrade()
+      // Out-of-order: ink would complete a later stroke while an earlier one
+      // is still required — toast once per gesture (pen-up), not try-again.
+      if (!doneRef.current) {
+        const maskNow = maskRef.current
+        if (maskNow) {
+          const ooo = outOfOrderRequiredStroke(
+            maskNow,
+            prevStrokeDoneRef.current,
+          )
+          if (ooo != null) {
+            showPadToast(`do stroke ${ooo} first`)
+          }
+        }
+      }
       // Post-success extra purple from this stroke clears on pen-up, not when
       // the next stroke finally passes.
       if (
@@ -1768,6 +1823,7 @@ export default function TracePad({
     accent,
     phase,
     checkGrade,
+    showPadToast,
     ensureInkStore,
     captureInkSnapshot,
     stampStrokePaint,
@@ -1823,13 +1879,15 @@ export default function TracePad({
   const beatenSet = new Set(progress.beaten)
   const charCleared = levelCount > 0 && beatenSet.size >= levelCount
   const levelLabel =
-    levelCount === 0
-      ? 'Levels · Loading…'
-      : phase === 'demo'
-        ? `Levels · Level ${level} · Demo`
-        : phase === 'passed'
-          ? `Levels · Level ${level} cleared!`
-          : `Levels · Level ${level} of ${levelCount}`
+    loadError
+      ? 'Levels · Unavailable'
+      : levelCount === 0
+        ? 'Levels · Loading…'
+        : phase === 'demo'
+          ? `Levels · Level ${level} · Demo`
+          : phase === 'passed'
+            ? `Levels · Level ${level} cleared (click to replay)`
+            : `Levels · Level ${level} of ${levelCount}`
 
   const strokeTotal = strokeData?.strokes.length ?? levelCount
   const strokesDone =
@@ -2118,14 +2176,20 @@ export default function TracePad({
               </div>
             )}
             {phase === 'passed' && (
-              <div className="trace-success" role="status">
+              <button
+                type="button"
+                className="trace-success is-replay"
+                onClick={replayGuide}
+                aria-label={`Level ${level} cleared, click to replay`}
+                title="Replay this level"
+              >
                 <span className="trace-check">✓</span>
-                <span>Level {level} cleared</span>
-              </div>
+                <span>Level {level} cleared (click to replay)</span>
+              </button>
             )}
-            {tryAgainToast && (
+            {padToast && (
               <div className="trace-try-again-toast" role="status" aria-live="polite">
-                try again
+                {padToast}
               </div>
             )}
           </div>

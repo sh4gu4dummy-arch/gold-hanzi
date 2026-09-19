@@ -49,19 +49,27 @@ export default function Practice() {
       setEntryResolved(true)
       // If user is on v3 view, still warm the extras for next/ordered.
       if (getHskView() === 'v3') {
-        void ensureCatalogForView('v3').then(() => {
-          if (!cancelled) setCatalogTick((n) => n + 1)
-        })
+        void ensureCatalogForView('v3')
+          .then(() => {
+            if (!cancelled) setCatalogTick((n) => n + 1)
+          })
+          .catch(() => {})
       }
       return
     }
     setEntryResolved(false)
-    void ensureCharacterEntry(id).then((found) => {
-      if (cancelled) return
-      setEntry(found)
-      setEntryResolved(true)
-      setCatalogTick((n) => n + 1)
-    })
+    void ensureCharacterEntry(id)
+      .then((found) => {
+        if (cancelled) return
+        setEntry(found)
+        setEntryResolved(true)
+        setCatalogTick((n) => n + 1)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setEntry(undefined)
+        setEntryResolved(true)
+      })
     return () => {
       cancelled = true
     }
