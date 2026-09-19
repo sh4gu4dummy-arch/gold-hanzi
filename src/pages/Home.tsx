@@ -3,11 +3,13 @@ import { Link } from 'react-router-dom'
 import ThemeToggle from '../components/ThemeToggle'
 import { CHARACTERS } from '../data/characters'
 import type { CharacterEntry } from '../data/characters'
+import { ensureBandLoaded } from '../data/strokeData'
 import {
   bandProgress,
   buildBands,
   entriesForView,
   isCharacterUnlocked,
+  lessonBandProgress,
   strokeLevelCount,
 } from '../lib/homeCatalog'
 import {
@@ -54,6 +56,22 @@ export default function Home() {
     setOpenLessons(new Set([first]))
     setOpenBand(null)
   }, [hskView, revision])
+
+  // Warm stroke geometry for the open band (classic HSK modules).
+  useEffect(() => {
+    if (resolvedBand == null) return
+    const band = bands.find((b) => b.level === resolvedBand)
+    if (!band) return
+    const classic = new Set<number>()
+    for (const e of band.entries) {
+      if (e.hskClassic != null) classic.add(e.hskClassic)
+    }
+    // Classic view: band level itself is the module key.
+    if (hskView === 'classic') classic.add(resolvedBand)
+    for (const level of classic) {
+      void ensureBandLoaded(level)
+    }
+  }, [resolvedBand, bands, hskView])
 
   const handleWipeAll = () => {
     const ok = window.confirm(
@@ -164,6 +182,7 @@ export default function Home() {
         {bands.map((band) => {
           const expanded = resolvedBand === band.level
           const prog = bandProgress(band.entries)
+          const lessonProg = lessonBandProgress(band.lessons)
           return (
             <section
               key={band.level}
@@ -177,7 +196,8 @@ export default function Home() {
               >
                 <span className="hsk-band-title">{band.label}</span>
                 <span className="hsk-band-meta">
-                  {prog.cleared}/{prog.total}
+                  {prog.cleared}/{prog.total} chars · {lessonProg.cleared}/
+                  {lessonProg.total} lessons
                 </span>
                 <span className="hsk-band-chev" aria-hidden="true">
                   {expanded ? '▾' : '▸'}

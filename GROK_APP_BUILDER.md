@@ -49,6 +49,16 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-19 — HSK3, band lazy-load, lesson counts, levels above pad (v0.018)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `characters.ts`, `strokeData.ts`, `strokeBands/*`, `strokeCounts.ts`, `charBands.ts`, `strokes/*`, `homeCatalog.ts`, `Home.tsx`, `TracePad.tsx`, `Practice.tsx`, `index.css`, `version.ts`
+
+- Classic **HSK 3** characters added (unique chars from official 2012 L3 words not already in catalog) with vendored stroke JSON; `hskV3` best-effort.
+- Stroke geometry **lazy-loaded by classic HSK band** (`strokeBands/hsk1|2|3`); eager `STROKE_COUNTS` keeps homeCatalog sync. Home warms the open band; TracePad/`charDataLoader` ensure the character’s band.
+- Home band headers show **chars cleared/total** and **lessons cleared/total** (lesson cleared = every char fully cleared).
+- Practice: level pip strip moved **above** the tracing board (header/pinyin area); Skip/Replay stays pad corner; toolbar stays below.
+
 ### 2026-09-19 — Practice header: pinyin, Home, scroll levels (v0.017)
 
 **Who:** gold-hanzi (repo Grok)  

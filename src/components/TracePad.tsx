@@ -1,6 +1,12 @@
 import HanziWriter from 'hanzi-writer'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { STROKE_DATA, charDataLoader } from '../data/strokeData'
+import {
+  STROKE_DATA,
+  charDataLoader,
+  ensureCharacterStrokes,
+  getStrokeData,
+} from '../data/strokeData'
+import type { StrokeCharacterData } from '../data/strokeData'
 import {
   HANZI_PADDING,
   applyHanziTransform,
@@ -553,7 +559,9 @@ export default function TracePad({
   const gesturePassedStrokeRef = useRef(false)
   const demoEnabledRef = useRef(getDemoEnabled())
 
-  const strokeData = STROKE_DATA[character]
+  const [strokeData, setStrokeData] = useState<StrokeCharacterData | undefined>(
+    () => STROKE_DATA[character] ?? getStrokeData(character),
+  )
   /** Progressive levels 1..strokeCount, plus final all-strokes memory. */
   const strokeCount = strokeData?.strokes.length ?? 0
   const levelCount = strokeCount > 0 ? strokeCount + 1 : 0
@@ -565,6 +573,40 @@ export default function TracePad({
   const [level, setLevel] = useState(1)
   const [phase, setPhase] = useState<Phase>('loading')
   const [loadError, setLoadError] = useState<string | null>(null)
+
+  // Lazy-load stroke geometry for this character's classic HSK band.
+  useEffect(() => {
+    let cancelled = false
+    const cached = STROKE_DATA[character] ?? getStrokeData(character)
+    if (cached) {
+      setStrokeData(cached)
+    } else {
+      setStrokeData(undefined)
+      setPhase('loading')
+      setLoadError(null)
+    }
+    void ensureCharacterStrokes(character)
+      .then(() => {
+        if (cancelled) return
+        const data = STROKE_DATA[character] ?? getStrokeData(character)
+        setStrokeData(data)
+        if (!data) {
+          setLoadError('Could not load stroke-order data for this character.')
+        }
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        setLoadError(
+          err instanceof Error
+            ? err.message
+            : 'Could not load stroke-order data for this character.',
+        )
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [character])
+
   const [liveGrade, setLiveGrade] = useState<GradeStatus | null>(null)
   /** false (default): guides on, hide completed hand ink. true: ink only. */
   const [showMyStrokes, setShowMyStrokes] = useState(false)
@@ -1129,10 +1171,11 @@ export default function TracePad({
     clearAutoAdvance()
 
     if (!strokeData) {
-      setLoadError('Could not load stroke-order data for this character.')
+      // Band chunk still loading (or failed — loadError set by ensure effect).
       setPhase('loading')
       return
     }
+    setLoadError(null)
 
     const session = ++sessionRef.current
     const initialProgress = getCharProgress(character)
@@ -1661,66 +1704,6 @@ export default function TracePad({
       )}
 
 
-      <div className="trace-stage-slot">
-      <div
-        ref={wrapRef}
-        className={`trace-stage${phase === 'passed' ? ' is-done' : ''}`}
-        style={{ ['--accent' as string]: accent }}
-      >
-        <div className="tianzige" aria-hidden="true">
-          <span className="tianzige-h" />
-          <span className="tianzige-v" />
-          <span className="tianzige-d1" />
-          <span className="tianzige-d2" />
-        </div>
-
-        <canvas
-          ref={guideCanvasRef}
-          className="guide-canvas"
-          aria-hidden="true"
-        />
-
-        <div
-          ref={writerHostRef}
-          className="hanzi-host"
-          aria-hidden={phase !== 'demo'}
-        />
-
-        <canvas
-          ref={inkCanvasRef}
-          className="trace-canvas"
-          aria-label={`Trace character ${character}, level ${level}`}
-          style={{
-            pointerEvents: phase === 'writing' ? 'auto' : 'none',
-            opacity: phase === 'demo' ? 0 : 1,
-          }}
-        />
-
-        {loadError && (
-          <div className="trace-error" role="alert">
-            {loadError}
-          </div>
-        )}
-        {phase === 'passed' && (
-          <div className="trace-success" role="status">
-            <span className="trace-check">✓</span>
-            <span>Level {level} cleared</span>
-          </div>
-        )}
-        {(phase === 'demo' || phase === 'writing' || phase === 'passed') && (
-          <button
-            type="button"
-            className="trace-corner-btn"
-            onClick={phase === 'demo' ? skipGuide : replayGuide}
-            disabled={!!loadError}
-            aria-label={phase === 'demo' ? 'Skip demo' : 'Replay'}
-            title={phase === 'demo' ? 'Skip demo' : 'Replay'}
-          >
-            {phase === 'demo' ? 'Skip' : 'Replay'}
-          </button>
-        )}
-      </div>
-      </div>
 
       <div
         className={`level-pips-wrap${pipsOverflow ? ' is-overflow' : ''}`}
@@ -1805,6 +1788,67 @@ export default function TracePad({
         >
           ›
         </button>
+      </div>
+
+            <div className="trace-stage-slot">
+      <div
+        ref={wrapRef}
+        className={`trace-stage${phase === 'passed' ? ' is-done' : ''}`}
+        style={{ ['--accent' as string]: accent }}
+      >
+        <div className="tianzige" aria-hidden="true">
+          <span className="tianzige-h" />
+          <span className="tianzige-v" />
+          <span className="tianzige-d1" />
+          <span className="tianzige-d2" />
+        </div>
+
+        <canvas
+          ref={guideCanvasRef}
+          className="guide-canvas"
+          aria-hidden="true"
+        />
+
+        <div
+          ref={writerHostRef}
+          className="hanzi-host"
+          aria-hidden={phase !== 'demo'}
+        />
+
+        <canvas
+          ref={inkCanvasRef}
+          className="trace-canvas"
+          aria-label={`Trace character ${character}, level ${level}`}
+          style={{
+            pointerEvents: phase === 'writing' ? 'auto' : 'none',
+            opacity: phase === 'demo' ? 0 : 1,
+          }}
+        />
+
+        {loadError && (
+          <div className="trace-error" role="alert">
+            {loadError}
+          </div>
+        )}
+        {phase === 'passed' && (
+          <div className="trace-success" role="status">
+            <span className="trace-check">✓</span>
+            <span>Level {level} cleared</span>
+          </div>
+        )}
+        {(phase === 'demo' || phase === 'writing' || phase === 'passed') && (
+          <button
+            type="button"
+            className="trace-corner-btn"
+            onClick={phase === 'demo' ? skipGuide : replayGuide}
+            disabled={!!loadError}
+            aria-label={phase === 'demo' ? 'Skip demo' : 'Replay'}
+            title={phase === 'demo' ? 'Skip demo' : 'Replay'}
+          >
+            {phase === 'demo' ? 'Skip' : 'Replay'}
+          </button>
+        )}
+      </div>
       </div>
 
       <div

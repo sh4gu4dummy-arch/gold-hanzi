@@ -1,5 +1,5 @@
 import type { CharacterEntry } from '../data/characters'
-import { STROKE_DATA } from '../data/strokeData'
+import { STROKE_COUNTS } from '../data/strokeCounts'
 import { beatenCount } from './progress'
 import type { DifficultyMode, HskView } from './homePref'
 
@@ -69,9 +69,9 @@ export function buildBands(
   })
 }
 
-/** Raw Make-Me-a-Hanzi stroke count (guides / grading). */
+/** Raw Make-Me-a-Hanzi stroke count (guides / grading). Eager counts map. */
 export function rawStrokeCount(character: string): number {
-  return STROKE_DATA[character]?.strokes.length ?? 0
+  return STROKE_COUNTS[character] ?? 0
 }
 
 /**
@@ -116,6 +116,25 @@ export function bandProgress(entries: CharacterEntry[]): {
     if (isCharacterCleared(e.character)) cleared += 1
   }
   return { cleared, total: entries.length }
+}
+
+/**
+ * A lesson is cleared when every character in it is fully cleared (all levels).
+ */
+export function lessonBandProgress(lessons: HomeLesson[]): {
+  cleared: number
+  total: number
+} {
+  let cleared = 0
+  for (const lesson of lessons) {
+    if (
+      lesson.entries.length > 0 &&
+      lesson.entries.every((e) => isCharacterCleared(e.character))
+    ) {
+      cleared += 1
+    }
+  }
+  return { cleared, total: lessons.length }
 }
 
 /**

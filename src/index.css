@@ -244,7 +244,7 @@ h1 {
 .practice-bar {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   flex-shrink: 0;
 }
 
@@ -451,7 +451,7 @@ h1 {
   flex-shrink: 0;
   width: min(100%, 520px);
   margin: 0 auto;
-  padding: 2px 0 0;
+  padding: 0 0 2px;
 }
 
 .icon-btn {
@@ -863,7 +863,7 @@ h1 {
   width: min(100%, 520px);
   margin: 0 auto;
   flex-shrink: 0;
-  padding: 2px 0 0;
+  padding: 0 0 2px;
   min-width: 0;
 }
 
@@ -1327,7 +1327,7 @@ h1 {
 
 .hsk-band-meta,
 .hsk-lesson-meta {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
