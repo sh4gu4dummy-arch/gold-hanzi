@@ -49,6 +49,15 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-19 — HSK 5–6 and lesson lazy-load with prefetch (v0.025)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `characters.ts`, `charBands.ts`, `strokeCounts.ts`, `strokeBands/hsk5|hsk6.ts`, `strokes/*`, `strokeData.ts`, `Home.tsx`, `version.ts`, `README.md`
+
+- Classic **HSK 5** (+620) and **HSK 6** (+976) unique characters with vendored stroke JSON; `hskV3` best-effort; lazy band chunks `hsk5` / `hsk6`.
+- **Lesson lazy-load:** opening a lesson loads that lesson’s stroke JSON (per-char Vite chunks); **prefetch** the next lesson in the same band.
+- **HSK 1 Lesson 1** eager on Home mount. Band `ensureBandLoaded` still covers classic 1–6 for bulk/cold paths.
+
 ### 2026-09-19 — Toast polish, Strict hint, first-run tip, HSK 4 (v0.024)
 
 **Who:** gold-hanzi (repo Grok)  

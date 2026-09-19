@@ -3,7 +3,11 @@ import { Link } from 'react-router-dom'
 import ThemeToggle from '../components/ThemeToggle'
 import { CHARACTERS } from '../data/characters'
 import type { CharacterEntry } from '../data/characters'
-import { ensureBandLoaded } from '../data/strokeData'
+import {
+  ensureHsk1Lesson1Loaded,
+  ensureLessonLoaded,
+  prefetchNextLesson,
+} from '../data/strokeData'
 import {
   bandProgress,
   buildBands,
@@ -57,21 +61,23 @@ export default function Home() {
     setOpenBand(null)
   }, [hskView, revision])
 
-  // Warm stroke geometry for the open band (classic HSK modules).
+  // HSK 1 Lesson 1 is eager — always warm on home mount / start.
   useEffect(() => {
-    if (resolvedBand == null) return
-    const band = bands.find((b) => b.level === resolvedBand)
-    if (!band) return
-    const classic = new Set<number>()
-    for (const e of band.entries) {
-      if (e.hskClassic != null) classic.add(e.hskClassic)
+    void ensureHsk1Lesson1Loaded()
+  }, [])
+
+  // Lesson lazy-load: when a lesson opens, load its chars; prefetch the next
+  // lesson in the same band. Band modules still exist for bulk/cold paths.
+  useEffect(() => {
+    if (openLessons.size === 0) return
+    for (const band of bands) {
+      for (const lesson of band.lessons) {
+        if (!openLessons.has(lesson.id)) continue
+        void ensureLessonLoaded(lesson.entries)
+        prefetchNextLesson(band.lessons, lesson.id)
+      }
     }
-    // Classic view: band level itself is the module key.
-    if (hskView === 'classic') classic.add(resolvedBand)
-    for (const level of classic) {
-      void ensureBandLoaded(level)
-    }
-  }, [resolvedBand, bands, hskView])
+  }, [openLessons, bands])
 
   const handleWipeAll = () => {
     const ok = window.confirm(
