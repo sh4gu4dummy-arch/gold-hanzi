@@ -13,7 +13,9 @@ import {
 import {
   getDifficultyMode,
   getHskView,
+  getPhrasePanelOpen,
   getSoundTipSeen,
+  setPhrasePanelOpen,
   setSoundTipSeen,
 } from '../lib/homePref'
 import { clearCharProgress, getCharProgress } from '../lib/progress'
@@ -35,6 +37,7 @@ export default function Practice() {
   /** Host for TracePad level-pip strip (ported under big pinyin). */
   const [levelPipsHost, setLevelPipsHost] = useState<HTMLElement | null>(null)
   const [showSoundTip, setShowSoundTip] = useState(() => !getSoundTipSeen())
+  const [phraseOpen, setPhraseOpen] = useState(() => getPhrasePanelOpen())
 
   const progress: CharProgress = entry
     ? (progressByChar[entry.character] ?? getCharProgress(entry.character))
@@ -159,6 +162,49 @@ export default function Practice() {
             <span aria-hidden="true">🔊</span>
           </button>
         </div>
+
+        {entry.phrase && entry.phraseGloss && (
+          <div className="practice-phrase-panel">
+            <button
+              type="button"
+              className="practice-phrase-toggle"
+              aria-expanded={phraseOpen}
+              onClick={() => {
+                setPhraseOpen((open) => {
+                  const next = !open
+                  setPhrasePanelOpen(next)
+                  return next
+                })
+              }}
+            >
+              <span>Context phrase</span>
+              <span className="practice-phrase-chev" aria-hidden="true">
+                {phraseOpen ? '▾' : '▸'}
+              </span>
+            </button>
+            {phraseOpen && (
+              <div className="practice-phrase-body">
+                <div
+                  className="practice-phrase-hanzi"
+                  lang="zh-Hans"
+                  aria-label={`Phrase ${entry.phrase}`}
+                >
+                  {Array.from(entry.phrase).map((ch, i) => (
+                    <span
+                      key={`${ch}-${i}`}
+                      className={`practice-phrase-char${
+                        ch === entry.character ? ' is-current' : ''
+                      }`}
+                    >
+                      {ch}
+                    </span>
+                  ))}
+                </div>
+                <p className="practice-phrase-gloss">{entry.phraseGloss}</p>
+              </div>
+            )}
+          </div>
+        )}
 
         {showSoundTip && (
           <div className="practice-sound-tip" role="status">

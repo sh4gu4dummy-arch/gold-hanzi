@@ -49,6 +49,15 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-19 — Band battery meters and HSK1 context phrases (v0.027)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `Home.tsx`, `Practice.tsx`, `characters.ts`, `homePref.ts`, `index.css`, `version.ts`
+
+- **Band batteries:** replaced per-lesson pill strip with **one equal-size pill per classic HSK band 1–6**. Fill % = **char-cleared / band total** (smoother battery than lesson-cleared with 15–82 lessons/band). Compact row so wipe-all stays visible on mobile; light 1…6 labels.
+- **HSK 1 context phrases:** optional `phrase` + `phraseGloss` on all **176** classic HSK 1 entries (natural 2–4 char words/phrases).
+- **Practice:** collapsible “Context phrase” panel under pinyin (default collapsed; `localStorage` `chinese-trace:phrase-panel-open:v1`); highlights current character; hidden when no phrase.
+
 ### 2026-09-19 — Home info icons, lesson pills, wipe all (v0.026)
 
 **Who:** gold-hanzi (repo Grok)  

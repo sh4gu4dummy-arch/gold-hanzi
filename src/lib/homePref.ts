@@ -60,3 +60,22 @@ export function setSoundTipSeen(): void {
   }
 }
 
+
+export const PHRASE_PANEL_KEY = 'chinese-trace:phrase-panel-open:v1'
+
+/** Practice context-phrase panel; default collapsed. */
+export function getPhrasePanelOpen(): boolean {
+  try {
+    return localStorage.getItem(PHRASE_PANEL_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function setPhrasePanelOpen(open: boolean): void {
+  try {
+    localStorage.setItem(PHRASE_PANEL_KEY, open ? '1' : '0')
+  } catch {
+    /* ignore */
+  }
+}

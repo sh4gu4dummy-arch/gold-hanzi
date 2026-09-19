@@ -13,7 +13,6 @@ import {
   bandProgress,
   buildBands,
   entriesForView,
-  isCharacterCleared,
   isCharacterUnlocked,
   lessonBandProgress,
   strokeLevelCount,
@@ -53,7 +52,7 @@ export default function Home() {
     () => entriesForView(CHARACTERS, hskView),
     [hskView, revision],
   )
-  /** Classic HSK 1–6 lesson pills — always classic, independent of syllabus toggle. */
+  /** Classic HSK 1–6 band batteries — always classic, independent of syllabus toggle. */
   const classicBands = useMemo(
     () => buildBands(CHARACTERS, 'classic'),
     [revision],
@@ -250,38 +249,36 @@ export default function Home() {
         </div>
 
         <div
-          className="home-lesson-pills"
-          aria-label="Classic HSK 1–6 lesson progress"
+          className="home-band-batteries"
+          role="list"
+          aria-label="Classic HSK 1–6 band progress"
         >
-          {classicBands.map((band) => (
-            <div key={band.level} className="home-lesson-pill-band">
-              <span className="home-lesson-pill-label" aria-hidden="true">
-                {band.level}
-              </span>
+          {classicBands.map((band) => {
+            const prog = bandProgress(band.entries)
+            const pct =
+              prog.total > 0
+                ? Math.round((prog.cleared / prog.total) * 100)
+                : 0
+            return (
               <div
-                className="home-lesson-pill-row"
-                role="list"
-                aria-label={`${band.label} lessons`}
+                key={band.level}
+                className="home-band-battery"
+                role="listitem"
+                title={`${band.label}: ${prog.cleared}/${prog.total} characters cleared (${pct}%)`}
+                aria-label={`${band.label}: ${prog.cleared} of ${prog.total} characters cleared, ${pct} percent`}
               >
-                {band.lessons.map((lesson) => {
-                  const done =
-                    lesson.entries.length > 0 &&
-                    lesson.entries.every((e) =>
-                      isCharacterCleared(e.character),
-                    )
-                  return (
-                    <span
-                      key={lesson.id}
-                      role="listitem"
-                      className={`home-lesson-pill${done ? ' is-done' : ''}`}
-                      title={`${band.label} ${lesson.label}${done ? ' · done' : ''}`}
-                      aria-label={`${band.label} ${lesson.label}${done ? ', completed' : ', incomplete'}`}
-                    />
-                  )
-                })}
+                <span className="home-band-battery-label" aria-hidden="true">
+                  {band.level}
+                </span>
+                <span className="home-band-battery-track" aria-hidden="true">
+                  <span
+                    className="home-band-battery-fill"
+                    style={{ width: `${pct}%` }}
+                  />
+                </span>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </header>
 
