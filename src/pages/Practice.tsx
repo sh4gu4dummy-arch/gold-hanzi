@@ -176,28 +176,17 @@ export default function Practice() {
             </span>
             <span className="practice-home-label">Home</span>
           </Link>
-          <div className="practice-meta">
-            <p className="practice-meta-sub">
-              {entry.meaning}
-              {levelCount > 0 && (
-                <>
-                  {' '}
-                  · {cleared}/{levelCount}
-                </>
-              )}
-            </p>
-            {bandLessonMeta && (
-              <p
-                className="practice-meta-band"
-                title={`${bandLessonMeta.bandLabel}: ${bandLessonMeta.bandCleared}/${bandLessonMeta.bandTotal} chars · Lesson ${bandLessonMeta.lessonNumber}: ${bandLessonMeta.lessonCleared}/${bandLessonMeta.lessonTotal} cleared`}
-              >
-                L{bandLessonMeta.lessonNumber}{' '}
-                {bandLessonMeta.lessonCleared}/{bandLessonMeta.lessonTotal}
-                {' · '}
-                {bandLessonMeta.bandLabel} {bandLessonMeta.bandCleared}/
-                {bandLessonMeta.bandTotal}
-              </p>
-            )}
+          <div className="practice-pinyin-row">
+            <span className="practice-pinyin">{entry.pinyin}</span>
+            <button
+              type="button"
+              className="practice-speak-btn"
+              onClick={handleSpeak}
+              title="Replay pronunciation"
+              aria-label={`Speak ${entry.character}, ${entry.pinyin}`}
+            >
+              <span aria-hidden="true">🔊</span>
+            </button>
           </div>
           <div className="practice-bar-actions">
             <span
@@ -209,17 +198,28 @@ export default function Practice() {
             <ThemeToggle />
           </div>
         </div>
-        <div className="practice-pinyin-row">
-          <span className="practice-pinyin">{entry.pinyin}</span>
-          <button
-            type="button"
-            className="practice-speak-btn"
-            onClick={handleSpeak}
-            title="Replay pronunciation"
-            aria-label={`Speak ${entry.character}, ${entry.pinyin}`}
-          >
-            <span aria-hidden="true">🔊</span>
-          </button>
+        <div className="practice-meta">
+          <p className="practice-meta-sub">
+            {entry.meaning}
+            {levelCount > 0 && (
+              <>
+                {' '}
+                · {cleared}/{levelCount}
+              </>
+            )}
+          </p>
+          {bandLessonMeta && (
+            <p
+              className="practice-meta-band"
+              title={`${bandLessonMeta.bandLabel}: ${bandLessonMeta.bandCleared}/${bandLessonMeta.bandTotal} chars · Lesson ${bandLessonMeta.lessonNumber}: ${bandLessonMeta.lessonCleared}/${bandLessonMeta.lessonTotal} cleared`}
+            >
+              L{bandLessonMeta.lessonNumber}{' '}
+              {bandLessonMeta.lessonCleared}/{bandLessonMeta.lessonTotal}
+              {' · '}
+              {bandLessonMeta.bandLabel} {bandLessonMeta.bandCleared}/
+              {bandLessonMeta.bandTotal}
+            </p>
+          )}
         </div>
 
         {phrasesEnabled && entry.phrase && entry.phraseGloss && (
@@ -325,6 +325,23 @@ export default function Practice() {
         character={entry.character}
         accent={DEFAULT_ACCENT}
         levelPipsHost={levelPipsHost}
+        nextCharAction={
+          finished && allLevelsCleared ? (
+            nextEntry ? (
+              <Link
+                className="btn btn-primary next-char-btn next-char-btn-sm"
+                to={`/practice/${nextEntry.id}`}
+              >
+                Next character · {nextEntry.character} {nextEntry.pinyin}
+              </Link>
+            ) : (
+              <p className="next-hint next-caught-up">
+                All caught up!{' '}
+                <Link to="/">Back to home</Link>
+              </p>
+            )
+          ) : null
+        }
         onDone={() => setFinishedChar(entry.character)}
         onProgressChange={(nextProgress) =>
           setProgressByChar((prev) => ({
@@ -335,20 +352,6 @@ export default function Practice() {
       />
 
       <div className="practice-footer-row">
-        {finished && allLevelsCleared &&
-          (nextEntry ? (
-            <Link
-              className="btn btn-primary next-char-btn next-char-btn-sm"
-              to={`/practice/${nextEntry.id}`}
-            >
-              Next character · {nextEntry.character} {nextEntry.pinyin}
-            </Link>
-          ) : (
-            <p className="next-hint next-caught-up">
-              All caught up!{' '}
-              <Link to="/">Back to home</Link>
-            </p>
-          ))}
         <button
           type="button"
           className="link-danger"

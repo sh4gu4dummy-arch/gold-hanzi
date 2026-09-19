@@ -55,11 +55,15 @@ type TracePadProps = {
   onDone?: () => void
   onProgressChange?: (progress: CharProgress, levelCount: number) => void
   /**
-   * Optional host element (Practice header under big pinyin).
+   * Optional host element (Practice header under top-bar pinyin).
    * When set, the level-pip strip is portaled there instead of under
    * the Levels progress chrome inside this pad.
    */
   levelPipsHost?: HTMLElement | null
+  /**
+   * Optional CTA shown on the same row as Next level (e.g. Next character).
+   */
+  nextCharAction?: ReactNode
 }
 
 type Phase = 'loading' | 'demo' | 'writing' | 'passed'
@@ -633,6 +637,7 @@ export default function TracePad({
   onDone,
   onProgressChange,
   levelPipsHost = null,
+  nextCharAction = null,
 }: TracePadProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const writerHostRef = useRef<HTMLDivElement>(null)
@@ -2243,7 +2248,7 @@ export default function TracePad({
         </button>
         <button
           type="button"
-          className={`dock-btn${soundEnabled ? ' is-on' : ''}`}
+          className={`dock-btn dock-btn-sound${soundEnabled ? ' is-on' : ''}`}
           onClick={toggleSoundEnabled}
           aria-pressed={soundEnabled}
           aria-label={
@@ -2255,8 +2260,21 @@ export default function TracePad({
               : 'Auto pronunciation off — tap to turn on'
           }
         >
-          <span className="dock-btn-icon" aria-hidden="true">
-            🎧
+          <span className="dock-btn-icon dock-btn-sound-icon" aria-hidden="true">
+            <svg
+              viewBox="0 0 24 24"
+              width="1em"
+              height="1em"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M3 12v3a3 3 0 0 0 3 3h1v-8H6a3 3 0 0 0-3 3z" />
+              <path d="M21 12v3a3 3 0 0 1-3 3h-1v-8h1a3 3 0 0 1 3 3z" />
+              <path d="M7 10V9a5 5 0 0 1 10 0v1" />
+            </svg>
           </span>
           <span className="dock-btn-label">
             {soundEnabled ? 'Auto' : 'Off'}
@@ -2268,16 +2286,19 @@ export default function TracePad({
           {voiceNote}
         </p>
       )}
-      {phase === 'passed' && level < levelCount && (
+      {((phase === 'passed' && level < levelCount) || nextCharAction) && (
         <div className="trace-actions">
-          <button
-            type="button"
-            className="btn btn-primary btn-compact"
-            onClick={goNextLevel}
-            disabled={!isLevelUnlocked(character, level + 1)}
-          >
-            Next level
-          </button>
+          {phase === 'passed' && level < levelCount && (
+            <button
+              type="button"
+              className="btn btn-primary btn-compact"
+              onClick={goNextLevel}
+              disabled={!isLevelUnlocked(character, level + 1)}
+            >
+              Next level
+            </button>
+          )}
+          {nextCharAction}
         </div>
       )}
 

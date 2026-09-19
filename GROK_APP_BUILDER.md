@@ -49,6 +49,15 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-19 — Pinyin top bar, next-char row, dark headphones (v0.031)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `Practice.tsx`, `TracePad.tsx`, `index.css`, `version.ts`
+
+- **Pinyin top bar:** pinyin + manual 🔊 speak sit on the same ceiling row as Home and the version stamp; meaning/band meta drops under that row.
+- **Next character row:** Next character CTA shares TracePad `trace-actions` with Next level (moved up together); wipe stays in the footer.
+- **Dark headphones:** Auto sound control uses a `currentColor` headphones SVG + dark-mode contrast so on/off states stay visible.
+
 ### 2026-09-19 — Load retry, cleared replay, stroke order cues (v0.030)
 
 **Who:** gold-hanzi (repo Grok)  

@@ -255,10 +255,17 @@ h1 {
   min-width: 0;
 }
 
-.practice-bar-row .practice-meta {
+.practice-bar-row .practice-pinyin-row {
   flex: 1;
   min-width: 0;
+  justify-content: center;
+  padding: 0 2px;
+}
+
+.practice-bar .practice-meta {
   text-align: center;
+  min-width: 0;
+  padding: 0 4px;
 }
 
 .practice-home {
@@ -322,32 +329,36 @@ h1 {
   justify-content: center;
   align-items: center;
   gap: 6px;
-  padding: 0 4px 2px;
+  padding: 0 4px;
 }
 
 .practice-pinyin {
   display: block;
-  font-size: clamp(22px, 6.5vw, 30px);
+  font-size: clamp(18px, 5vw, 24px);
   font-weight: 700;
   letter-spacing: 0.02em;
   color: var(--accent);
-  line-height: 1.15;
+  line-height: 1.1;
   text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .practice-speak-btn {
   appearance: none;
   border: 1px solid var(--line);
   background: var(--surface);
-  color: var(--accent-ink);
-  width: 40px;
-  height: 40px;
+  color: var(--accent);
+  width: 36px;
+  height: 36px;
   padding: 0;
   margin: 0;
   border-radius: 12px;
   display: inline-grid;
   place-items: center;
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1;
   cursor: pointer;
   flex-shrink: 0;
@@ -535,9 +546,40 @@ h1 {
 }
 
 .dock-btn.is-on {
-  color: var(--accent-ink);
+  color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
   background: var(--accent-soft);
+}
+
+.dock-btn-sound {
+  color: color-mix(in srgb, var(--text) 72%, var(--muted));
+}
+
+.dock-btn-sound.is-on {
+  color: var(--accent);
+}
+
+.dock-btn-sound-icon {
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.dock-btn-sound-icon svg {
+  display: block;
+  width: 1em;
+  height: 1em;
+}
+
+[data-theme='dark'] .dock-btn-sound {
+  color: #d7ccec;
+}
+
+[data-theme='dark'] .dock-btn-sound.is-on {
+  color: #e8ddff;
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--line));
+  background: color-mix(in srgb, var(--accent) 32%, var(--surface));
 }
 
 .dock-btn:disabled {
@@ -1244,7 +1286,13 @@ h1 {
   }
 
   .practice-pinyin {
-    font-size: clamp(20px, 6vw, 28px);
+    font-size: clamp(16px, 4.5vw, 22px);
+  }
+
+  .practice-speak-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
   }
 
   .practice-home {
