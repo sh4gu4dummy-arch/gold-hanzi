@@ -49,6 +49,15 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-19 — Practice UI: Skip/Replay corner + denser dock (v0.016)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `TracePad.tsx`, `index.css`, `version.ts`
+
+- Removed Watch badge/banner on the tracing screen.
+- One top-right corner control on the pad: **Skip** during demo, **Replay** while writing/passed (same button, label swaps). Bottom Skip demo / Replay removed to cut dead space.
+- Tighter pad→pip→toolbar dock; larger thumb-friendly toolbar icons and slightly larger level pips. Mobile portrait first.
+
 ### 2026-09-19 — Cleared-level review: guide XOR ink (v0.015)
 
 **Who:** gold-hanzi (repo Grok)  

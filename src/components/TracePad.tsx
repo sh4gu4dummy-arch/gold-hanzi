@@ -1639,10 +1639,17 @@ export default function TracePad({
             <span>Level {level} cleared</span>
           </div>
         )}
-        {phase === 'demo' && (
-          <div className="trace-demo-badge" role="status">
-            Watch…
-          </div>
+        {(phase === 'demo' || phase === 'writing' || phase === 'passed') && (
+          <button
+            type="button"
+            className="trace-corner-btn"
+            onClick={phase === 'demo' ? skipGuide : replayGuide}
+            disabled={!!loadError}
+            aria-label={phase === 'demo' ? 'Skip demo' : 'Replay'}
+            title={phase === 'demo' ? 'Skip demo' : 'Replay'}
+          >
+            {phase === 'demo' ? 'Skip' : 'Replay'}
+          </button>
         )}
       </div>
       </div>
@@ -1777,38 +1784,21 @@ export default function TracePad({
         </p>
       )}
 
-      <div className="trace-actions">
-        {phase === 'demo' ? (
-          <button
-            type="button"
-            className="btn btn-primary btn-compact"
-            onClick={skipGuide}
-            disabled={!!loadError}
-          >
-            Skip demo
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="btn btn-ghost btn-compact"
-            onClick={replayGuide}
-            disabled={phase === 'loading' || !!loadError || !demoEnabled}
-          >
-            Replay
-          </button>
-        )}
-        {phase === 'passed' && level < levelCount && (
-          <button
-            type="button"
-            className="btn btn-primary btn-compact"
-            onClick={goNextLevel}
-            disabled={!isLevelUnlocked(character, level + 1)}
-          >
-            Next level
-          </button>
-        )}
-        {nextCharacter !== undefined && (
-            nextCharacter ? (
+      {((phase === 'passed' && level < levelCount) ||
+        nextCharacter !== undefined) && (
+        <div className="trace-actions">
+          {phase === 'passed' && level < levelCount && (
+            <button
+              type="button"
+              className="btn btn-primary btn-compact"
+              onClick={goNextLevel}
+              disabled={!isLevelUnlocked(character, level + 1)}
+            >
+              Next level
+            </button>
+          )}
+          {nextCharacter !== undefined &&
+            (nextCharacter ? (
               <Link
                 className="btn btn-primary btn-compact next-char-btn"
                 to={`/practice/${nextCharacter.id}`}
@@ -1819,18 +1809,17 @@ export default function TracePad({
               <Link className="btn btn-ghost btn-compact" to="/">
                 All caught up
               </Link>
-            )
-          )}
-      </div>
+            ))}
+        </div>
+      )}
 
       <p className="trace-hint">
         {phase === 'passed' ? (
           <>
-            Nice work. Tap a pip to review your drawing, or Replay demo to
-            practice again.
+            Nice work. Tap a pip to review, or Replay to practice again.
           </>
         ) : phase === 'demo' ? (
-          <>Watch the Demo, or tap Skip demo to start tracing.</>
+          <>Demo playing — tap Skip to start tracing.</>
         ) : (
           <>{memoryHint}</>
         )}

@@ -101,7 +101,7 @@ a {
   min-height: 0;
   height: 100%;
   max-height: 100%;
-  gap: 6px;
+  gap: 4px;
   overflow: hidden;
 }
 
@@ -428,27 +428,29 @@ h1 {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-shrink: 0;
   width: min(100%, 520px);
   margin: 0 auto;
+  padding: 2px 0 0;
 }
 
 .icon-btn {
   appearance: none;
   display: inline-grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   padding: 0;
-  border-radius: 10px;
+  border-radius: 12px;
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--muted);
-  font-size: 16px;
+  font-size: 18px;
   line-height: 1;
   cursor: pointer;
   flex-shrink: 0;
+  touch-action: manipulation;
 }
 
 .icon-btn:hover:not(:disabled),
@@ -534,7 +536,7 @@ h1 {
 .trace-pad {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   flex: 1;
   min-height: 0;
 }
@@ -718,6 +720,7 @@ h1 {
   flex-wrap: wrap;
   gap: 6px;
   flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .trace-actions .btn-compact {
@@ -801,44 +804,62 @@ h1 {
   pointer-events: none;
 }
 
-.trace-demo-badge {
+/* Top-right Skip (demo) / Replay (writing) — same control, label swaps. */
+.trace-corner-btn {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  left: auto;
-  transform: none;
-  padding: 5px 10px;
+  top: 8px;
+  right: 8px;
+  z-index: 4;
+  appearance: none;
+  min-height: 32px;
+  padding: 6px 12px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 88%, black);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, white);
+  background: color-mix(in srgb, var(--accent) 92%, black);
   color: white;
   font-size: 12px;
-  font-weight: 600;
-  pointer-events: none;
-  letter-spacing: 0.04em;
-  z-index: 2;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+  touch-action: manipulation;
+}
+
+.trace-corner-btn:hover:not(:disabled),
+.trace-corner-btn:focus-visible {
+  filter: brightness(1.08);
+  outline: none;
+}
+
+.trace-corner-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .level-pips {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 4px;
+  gap: 5px;
   width: min(100%, 520px);
   margin: 0 auto;
   flex-shrink: 0;
+  padding: 2px 0 0;
 }
 
 .level-pip {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 4px 6px;
+  gap: 3px;
+  padding: 5px 7px;
   border: none;
   background: transparent;
   cursor: pointer;
   color: var(--muted);
-  min-width: 28px;
+  min-width: 32px;
+  touch-action: manipulation;
 }
 
 .level-pip:disabled {
@@ -847,8 +868,8 @@ h1 {
 }
 
 .level-pip-dot {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   border: 2px solid var(--line);
   background: transparent;
@@ -873,7 +894,7 @@ h1 {
 }
 
 .level-pip-num {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1;
 }
@@ -937,23 +958,29 @@ h1 {
   }
 
   .level-pip {
-    padding: 2px 4px;
-    min-width: 24px;
+    padding: 4px 6px;
+    min-width: 30px;
   }
 
   .level-pip-num {
-    font-size: 10px;
+    font-size: 11px;
   }
 
   .level-pip-dot {
-    width: 10px;
-    height: 10px;
+    width: 13px;
+    height: 13px;
   }
 
   .icon-btn {
-    width: 34px;
-    height: 34px;
-    font-size: 15px;
+    width: 42px;
+    height: 42px;
+    font-size: 17px;
+  }
+
+  .trace-corner-btn {
+    min-height: 30px;
+    padding: 5px 10px;
+    font-size: 11px;
   }
 
   .btn {
@@ -972,7 +999,12 @@ h1 {
   }
 
   .trace-pad {
-    gap: 3px;
+    gap: 2px;
+  }
+
+  .level-pips,
+  .trace-toolbar {
+    padding-top: 0;
   }
 }
 
