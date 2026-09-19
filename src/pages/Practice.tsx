@@ -25,6 +25,8 @@ export default function Practice() {
   >({})
   const [finishedChar, setFinishedChar] = useState<string | null>(null)
   const [padRevision, setPadRevision] = useState(0)
+  /** Host for TracePad level-pip strip (ported under big pinyin). */
+  const [levelPipsHost, setLevelPipsHost] = useState<HTMLElement | null>(null)
 
   const progress: CharProgress = entry
     ? (progressByChar[entry.character] ?? getCharProgress(entry.character))
@@ -107,22 +109,28 @@ export default function Practice() {
           </div>
         </div>
         <div className="practice-pinyin-row">
+          <span className="practice-pinyin">{entry.pinyin}</span>
           <button
             type="button"
-            className="practice-pinyin-btn"
+            className="practice-speak-btn"
             onClick={handleSpeak}
-            title="Speak character"
+            title="Replay pronunciation"
             aria-label={`Speak ${entry.character}, ${entry.pinyin}`}
           >
-            <span className="practice-pinyin">{entry.pinyin}</span>
+            <span aria-hidden="true">🔊</span>
           </button>
         </div>
+        <div
+          className="practice-level-pips-slot"
+          ref={setLevelPipsHost}
+        />
       </header>
 
       <TracePad
         key={`${entry.id}-${padRevision}`}
         character={entry.character}
         accent={DEFAULT_ACCENT}
+        levelPipsHost={levelPipsHost}
         nextCharacter={
           allLevelsCleared
             ? nextEntry

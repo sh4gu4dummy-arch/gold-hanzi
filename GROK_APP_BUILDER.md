@@ -49,6 +49,15 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-19 — Finish draft UI: levels under pinyin, labeled dock, sound split (v0.020)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `Practice.tsx`, `TracePad.tsx`, `index.css`, `version.ts`
+
+- Level pip strip **portaled** into Practice header **directly under big pinyin** (not under Levels progress chrome inside TracePad). Scroll / center-active / end-clamp unchanged.
+- Bottom toolbar is a labeled dock: **Demo · Strokes · Undo · Clear · Auto** with short labels under icons and larger hit targets.
+- Sound split: **🔊 next to pinyin** = manual replay only; bottom **🎧 Auto** = auto on/off only. Removed hold-to-toggle from the bottom button.
+
 ### 2026-09-19 — Align purple guide with green stroke geometry (v0.019)
 
 **Who:** gold-hanzi (repo Grok)  

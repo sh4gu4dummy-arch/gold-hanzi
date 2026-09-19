@@ -310,25 +310,8 @@ h1 {
   display: flex;
   justify-content: center;
   align-items: center;
+  gap: 6px;
   padding: 0 4px 2px;
-}
-
-.practice-pinyin-btn {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  padding: 2px 10px;
-  margin: 0;
-  cursor: pointer;
-  color: inherit;
-  line-height: 1;
-  border-radius: 8px;
-  touch-action: manipulation;
-}
-
-.practice-pinyin-btn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 
 .practice-pinyin {
@@ -340,6 +323,49 @@ h1 {
   line-height: 1.15;
   text-align: center;
 }
+
+.practice-speak-btn {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--accent-ink);
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  margin: 0;
+  border-radius: 12px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  touch-action: manipulation;
+}
+
+.practice-speak-btn:hover,
+.practice-speak-btn:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  outline: none;
+}
+
+.practice-level-pips-slot {
+  width: min(100%, 520px);
+  margin: 0 auto;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.practice-level-pips-slot:empty {
+  display: none;
+}
+
+.practice-level-pips-slot .level-pips-wrap {
+  width: 100%;
+  margin: 0;
+  padding: 0 0 2px;
+}
+
 
 .back-link {
   width: fit-content;
@@ -446,14 +472,69 @@ h1 {
 .trace-toolbar {
   display: flex;
   justify-content: center;
-  align-items: center;
-  gap: 8px;
+  align-items: stretch;
+  gap: 6px;
   flex-shrink: 0;
   width: min(100%, 520px);
   margin: 0 auto;
-  padding: 0 0 2px;
+  padding: 2px 0 4px;
 }
 
+.dock-btn {
+  appearance: none;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 56px;
+  min-height: 56px;
+  padding: 6px 8px 5px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  flex: 1 1 0;
+  max-width: 88px;
+  touch-action: manipulation;
+}
+
+.dock-btn-icon {
+  font-size: 20px;
+  line-height: 1;
+  display: block;
+}
+
+.dock-btn-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  color: inherit;
+}
+
+.dock-btn:hover:not(:disabled),
+.dock-btn:focus-visible {
+  color: var(--accent-ink);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+  outline: none;
+}
+
+.dock-btn.is-on {
+  color: var(--accent-ink);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  background: var(--accent-soft);
+}
+
+.dock-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Legacy icon-btn kept for any residual uses */
 .icon-btn {
   appearance: none;
   display: inline-grid;
@@ -1057,6 +1138,27 @@ h1 {
     width: 26px;
     height: 34px;
     font-size: 18px;
+  }
+
+  .dock-btn {
+    min-width: 52px;
+    min-height: 52px;
+    padding: 5px 6px 4px;
+    max-width: 80px;
+  }
+
+  .dock-btn-icon {
+    font-size: 18px;
+  }
+
+  .dock-btn-label {
+    font-size: 9px;
+  }
+
+  .practice-speak-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
   }
 
   .icon-btn {

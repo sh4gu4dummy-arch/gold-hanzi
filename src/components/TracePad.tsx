@@ -1,5 +1,6 @@
 import HanziWriter from 'hanzi-writer'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import {
   STROKE_DATA,
   charDataLoader,
@@ -62,6 +63,12 @@ type TracePadProps = {
    * - undefined → still working through levels (hide next-char UI)
    */
   nextCharacter?: NextCharacterInfo | null
+  /**
+   * Optional host element (Practice header under big pinyin).
+   * When set, the level-pip strip is portaled there instead of under
+   * the Levels progress chrome inside this pad.
+   */
+  levelPipsHost?: HTMLElement | null
 }
 
 type Phase = 'loading' | 'demo' | 'writing' | 'passed'
@@ -534,6 +541,7 @@ export default function TracePad({
   onDone,
   onProgressChange,
   nextCharacter,
+  levelPipsHost = null,
 }: TracePadProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const writerHostRef = useRef<HTMLDivElement>(null)
@@ -637,25 +645,10 @@ export default function TracePad({
     applySpeakResult(result)
   }, [character, applySpeakResult])
 
-  /** Manual replay — always allowed, even when auto Sound is off. */
-  const speakNow = useCallback(async () => {
-    const result: SpeakResult = await speakHanzi(character)
-    applySpeakResult(result)
-  }, [character, applySpeakResult])
-
-  const soundHoldTimerRef = useRef<number | null>(null)
-  const soundDidLongPressRef = useRef(false)
   const levelPipsRef = useRef<HTMLDivElement>(null)
   const [pipsOverflow, setPipsOverflow] = useState(false)
   const [canScrollPipsLeft, setCanScrollPipsLeft] = useState(false)
   const [canScrollPipsRight, setCanScrollPipsRight] = useState(false)
-
-  const clearSoundHoldTimer = useCallback(() => {
-    if (soundHoldTimerRef.current != null) {
-      window.clearTimeout(soundHoldTimerRef.current)
-      soundHoldTimerRef.current = null
-    }
-  }, [])
 
   // Cancel in-flight TTS when leaving this character.
   useEffect(() => {
@@ -1533,34 +1526,6 @@ export default function TracePad({
     }
   }
 
-  const onSoundPointerDown = () => {
-    soundDidLongPressRef.current = false
-    clearSoundHoldTimer()
-    soundHoldTimerRef.current = window.setTimeout(() => {
-      soundHoldTimerRef.current = null
-      soundDidLongPressRef.current = true
-      toggleSoundEnabled()
-    }, 400)
-  }
-
-  const onSoundPointerUp = () => {
-    clearSoundHoldTimer()
-  }
-
-  const onSoundPointerCancel = () => {
-    // Clear hold timer only — keep long-press flag so the following click is ignored.
-    clearSoundHoldTimer()
-  }
-
-  const onSoundClick = () => {
-    clearSoundHoldTimer()
-    if (soundDidLongPressRef.current) {
-      soundDidLongPressRef.current = false
-      return
-    }
-    void speakNow()
-  }
-
   const toggleShowMyStrokes = () => {
     const next = !showMyStrokesRef.current
     setShowMyStrokes(next)
@@ -1675,6 +1640,94 @@ export default function TracePad({
         ? 'Final memory: draw every stroke with no guide.'
         : `Memory: strokes 1–${level - 1} are hidden; later strokes still show a guide.`
 
+  const levelPipsStrip: ReactNode = (
+    <div
+      className={`level-pips-wrap${pipsOverflow ? ' is-overflow' : ''}`}
+      aria-label={`Levels beaten: ${beatenSet.size} of ${levelCount}`}
+    >
+      <button
+        type="button"
+        className="level-pips-arrow"
+        aria-label="Scroll levels left"
+        title="Earlier levels"
+        disabled={!canScrollPipsLeft}
+        onClick={() => scrollPipsBy(-1)}
+        hidden={!pipsOverflow}
+      >
+        ‹
+      </button>
+      <div
+        ref={levelPipsRef}
+        className="level-pips"
+        role="list"
+      >
+        {Array.from({ length: levelCount }, (_, i) => {
+          const L = i + 1
+          const unlocked = isLevelUnlocked(character, L)
+          const beaten = beatenSet.has(L)
+          const active = L === level
+          return (
+            <button
+              key={L}
+              type="button"
+              role="listitem"
+              className={[
+                'level-pip',
+                beaten ? 'is-beaten' : '',
+                active ? 'is-active' : '',
+                !unlocked ? 'is-locked' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              style={
+                beaten || active
+                  ? {
+                      ['--pip' as string]: accent,
+                    }
+                  : undefined
+              }
+              disabled={!unlocked || phase === 'demo' || phase === 'loading'}
+              onClick={() => selectLevel(L)}
+              aria-label={
+                beaten
+                  ? `Level ${L}, beaten${active ? ', selected' : ''}`
+                  : unlocked
+                    ? `Level ${L}${active ? ', selected' : ''}`
+                    : `Level ${L}, locked`
+              }
+              title={
+                unlocked
+                  ? beaten
+                    ? L > strokeCount
+                      ? `Final memory (beaten) — tap to review`
+                      : `Level ${L} (beaten) — tap to review`
+                    : L > strokeCount
+                      ? 'Final memory — all strokes, no guide'
+                      : `Level ${L}`
+                  : `Beat level ${L - 1} to unlock`
+              }
+            >
+              <span className="level-pip-dot" />
+              <span className="level-pip-num">{L}</span>
+            </button>
+          )
+        })}
+      </div>
+      <button
+        type="button"
+        className="level-pips-arrow"
+        aria-label="Scroll levels right"
+        title="Later levels"
+        disabled={!canScrollPipsRight}
+        onClick={() => scrollPipsBy(1)}
+        hidden={!pipsOverflow}
+      >
+        ›
+      </button>
+    </div>
+  )
+
+
   return (
     <div className="trace-pad">
       <div className="stroke-progress" aria-live="polite">
@@ -1717,92 +1770,12 @@ export default function TracePad({
 
 
 
-      <div
-        className={`level-pips-wrap${pipsOverflow ? ' is-overflow' : ''}`}
-        aria-label={`Levels beaten: ${beatenSet.size} of ${levelCount}`}
-      >
-        <button
-          type="button"
-          className="level-pips-arrow"
-          aria-label="Scroll levels left"
-          title="Earlier levels"
-          disabled={!canScrollPipsLeft}
-          onClick={() => scrollPipsBy(-1)}
-          hidden={!pipsOverflow}
-        >
-          ‹
-        </button>
-        <div
-          ref={levelPipsRef}
-          className="level-pips"
-          role="list"
-        >
-          {Array.from({ length: levelCount }, (_, i) => {
-            const L = i + 1
-            const unlocked = isLevelUnlocked(character, L)
-            const beaten = beatenSet.has(L)
-            const active = L === level
-            return (
-              <button
-                key={L}
-                type="button"
-                role="listitem"
-                className={[
-                  'level-pip',
-                  beaten ? 'is-beaten' : '',
-                  active ? 'is-active' : '',
-                  !unlocked ? 'is-locked' : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                style={
-                  beaten || active
-                    ? {
-                        ['--pip' as string]: accent,
-                      }
-                    : undefined
-                }
-                disabled={!unlocked || phase === 'demo' || phase === 'loading'}
-                onClick={() => selectLevel(L)}
-                aria-label={
-                  beaten
-                    ? `Level ${L}, beaten${active ? ', selected' : ''}`
-                    : unlocked
-                      ? `Level ${L}${active ? ', selected' : ''}`
-                      : `Level ${L}, locked`
-                }
-                title={
-                  unlocked
-                    ? beaten
-                      ? L > strokeCount
-                        ? `Final memory (beaten) — tap to review`
-                        : `Level ${L} (beaten) — tap to review`
-                      : L > strokeCount
-                        ? 'Final memory — all strokes, no guide'
-                        : `Level ${L}`
-                    : `Beat level ${L - 1} to unlock`
-                }
-              >
-                <span className="level-pip-dot" />
-                <span className="level-pip-num">{L}</span>
-              </button>
-            )
-          })}
-        </div>
-        <button
-          type="button"
-          className="level-pips-arrow"
-          aria-label="Scroll levels right"
-          title="Later levels"
-          disabled={!canScrollPipsRight}
-          onClick={() => scrollPipsBy(1)}
-          hidden={!pipsOverflow}
-        >
-          ›
-        </button>
-      </div>
+      {levelPipsHost
+        ? createPortal(levelPipsStrip, levelPipsHost)
+        : null}
 
-            <div className="trace-stage-slot">
+      <div className="trace-stage-slot">
+
       <div
         ref={wrapRef}
         className={`trace-stage${phase === 'passed' ? ' is-done' : ''}`}
@@ -1870,63 +1843,75 @@ export default function TracePad({
       >
         <button
           type="button"
-          className={`icon-btn${demoEnabled ? ' is-on' : ''}`}
+          className={`dock-btn${demoEnabled ? ' is-on' : ''}`}
           onClick={toggleDemoEnabled}
           aria-pressed={demoEnabled}
           aria-label={demoEnabled ? 'Demo on' : 'Demo off'}
-          title="Animated stroke-order Demo"
+          title="Animated stroke-order demo"
         >
-          <span aria-hidden="true">{demoEnabled ? '▶' : '⏸'}</span>
+          <span className="dock-btn-icon" aria-hidden="true">
+            {demoEnabled ? '▶' : '⏸'}
+          </span>
+          <span className="dock-btn-label">Demo</span>
         </button>
         <button
           type="button"
-          className={`icon-btn${showMyStrokes ? ' is-on' : ''}`}
+          className={`dock-btn${showMyStrokes ? ' is-on' : ''}`}
           onClick={toggleShowMyStrokes}
           aria-pressed={showMyStrokes}
           aria-label={showMyStrokes ? 'Show guides' : 'Show my strokes'}
           title={showMyStrokes ? 'Show guides' : 'Show my strokes'}
           disabled={phase !== 'writing' && phase !== 'passed'}
         >
-          <span aria-hidden="true">{showMyStrokes ? '✎' : '☰'}</span>
+          <span className="dock-btn-icon" aria-hidden="true">
+            {showMyStrokes ? '✎' : '☰'}
+          </span>
+          <span className="dock-btn-label">Strokes</span>
         </button>
         <button
           type="button"
-          className="icon-btn"
+          className="dock-btn"
           onClick={onUndoStroke}
           disabled={phase !== 'writing' || gestureCount === 0}
           aria-label="Undo stroke"
           title="Remove the last pen stroke"
         >
-          <span aria-hidden="true">↶</span>
+          <span className="dock-btn-icon" aria-hidden="true">
+            ↶
+          </span>
+          <span className="dock-btn-label">Undo</span>
         </button>
         <button
           type="button"
-          className="icon-btn"
+          className="dock-btn"
           onClick={onClear}
           disabled={phase !== 'writing'}
           aria-label="Clear"
           title="Clear ink"
         >
-          <span aria-hidden="true">⌫</span>
+          <span className="dock-btn-icon" aria-hidden="true">
+            ⌫
+          </span>
+          <span className="dock-btn-label">Clear</span>
         </button>
         <button
           type="button"
-          className={`icon-btn${soundEnabled ? ' is-on' : ''}`}
-          onClick={onSoundClick}
-          onPointerDown={onSoundPointerDown}
-          onPointerUp={onSoundPointerUp}
-          onPointerCancel={onSoundPointerCancel}
-          onPointerLeave={onSoundPointerCancel}
-          onContextMenu={(e) => e.preventDefault()}
+          className={`dock-btn${soundEnabled ? ' is-on' : ''}`}
+          onClick={toggleSoundEnabled}
           aria-pressed={soundEnabled}
           aria-label={
-            soundEnabled
-              ? 'Tap to hear character. Hold to turn auto sound off.'
-              : 'Tap to hear character. Hold to turn auto sound on.'
+            soundEnabled ? 'Auto sound on' : 'Auto sound off'
           }
-          title="Tap to hear · hold to toggle auto"
+          title={
+            soundEnabled
+              ? 'Auto pronunciation on — tap to turn off'
+              : 'Auto pronunciation off — tap to turn on'
+          }
         >
-          <span aria-hidden="true">{soundEnabled ? '🔊' : '🔇'}</span>
+          <span className="dock-btn-icon" aria-hidden="true">
+            🎧
+          </span>
+          <span className="dock-btn-label">Auto</span>
         </button>
       </div>
       {voiceNote && (
