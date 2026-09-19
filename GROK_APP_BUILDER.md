@@ -49,6 +49,16 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-19 — Home info icons, lesson pills, wipe all (v0.026)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `Home.tsx`, `index.css`, `version.ts`
+
+- **Strict / Dev ⓘ:** tiny info icons on the difficulty segment; tap opens a small mobile-friendly popover (title + explanation); removed the old one-liner hint under the toggle.
+- **Home lede removed:** dropped the “Trace Simplified characters…” guide copy.
+- **HSK 1–6 lesson pills:** sticky header shows classic-band lesson progress as tiny pills (green when a lesson is fully cleared), grouped by band 1–6.
+- **wipe all:** red text control moved to the bottom of Home (confirm before clear).
+
 ### 2026-09-19 — HSK 5–6 and lesson lazy-load with prefetch (v0.025)
 
 **Who:** gold-hanzi (repo Grok)  

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { MouseEvent as ReactMouseEvent } from 'react'
 import { Link } from 'react-router-dom'
 import ThemeToggle from '../components/ThemeToggle'
 import { CHARACTERS } from '../data/characters'
@@ -12,6 +13,7 @@ import {
   bandProgress,
   buildBands,
   entriesForView,
+  isCharacterCleared,
   isCharacterUnlocked,
   lessonBandProgress,
   strokeLevelCount,
@@ -26,6 +28,10 @@ import type { DifficultyMode, HskView } from '../lib/homePref'
 import { beatenCount, clearAllProgress } from '../lib/progress'
 import { APP_VERSION } from '../version'
 
+const STRICT_INFO =
+  'Strict locks each next character until you clear the previous one.'
+const DEV_INFO = 'Dev unlocked opens the whole catalog.'
+
 export default function Home() {
   const [revision, setRevision] = useState(0)
   const [hskView, setHskViewState] = useState<HskView>(() => getHskView())
@@ -36,6 +42,8 @@ export default function Home() {
   const [openBand, setOpenBand] = useState<number | null>(null)
   /** Independently open lessons (manual minimize; opening one does not close others). */
   const [openLessons, setOpenLessons] = useState<Set<string>>(() => new Set())
+  const [modeInfo, setModeInfo] = useState<null | 'strict' | 'dev'>(null)
+  const modeInfoRef = useRef<HTMLDivElement | null>(null)
 
   const bands = useMemo(
     () => buildBands(CHARACTERS, hskView),
@@ -44,6 +52,11 @@ export default function Home() {
   const ordered = useMemo(
     () => entriesForView(CHARACTERS, hskView),
     [hskView, revision],
+  )
+  /** Classic HSK 1–6 lesson pills — always classic, independent of syllabus toggle. */
+  const classicBands = useMemo(
+    () => buildBands(CHARACTERS, 'classic'),
+    [revision],
   )
 
   const resolvedBand =
@@ -78,6 +91,24 @@ export default function Home() {
       }
     }
   }, [openLessons, bands])
+
+  // Dismiss Strict/Dev info popover on outside tap / Escape.
+  useEffect(() => {
+    if (!modeInfo) return
+    const onPointer = (e: PointerEvent) => {
+      const el = modeInfoRef.current
+      if (el && !el.contains(e.target as Node)) setModeInfo(null)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setModeInfo(null)
+    }
+    document.addEventListener('pointerdown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [modeInfo])
 
   const handleWipeAll = () => {
     const ok = window.confirm(
@@ -115,6 +146,12 @@ export default function Home() {
     })
   }
 
+  const showModeInfo = (mode: 'strict' | 'dev', e: ReactMouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setModeInfo((cur) => (cur === mode ? null : mode))
+  }
+
   return (
     <main className="page home">
       <header className="home-header home-header-sticky">
@@ -130,10 +167,6 @@ export default function Home() {
           </div>
           <ThemeToggle />
         </div>
-        <p className="lede home-lede">
-          Trace Simplified characters by HSK band — one practice level per
-          stroke. Mobile-first; 12 characters per lesson.
-        </p>
 
         <div className="home-toggles" role="group" aria-label="Home options">
           <div className="home-seg" role="group" aria-label="HSK syllabus">
@@ -154,34 +187,101 @@ export default function Home() {
               HSK 3.0
             </button>
           </div>
-          <div className="home-seg" role="group" aria-label="Difficulty">
-            <button
-              type="button"
-              className={`home-seg-btn${difficulty === 'strict' ? ' is-on' : ''}`}
-              aria-pressed={difficulty === 'strict'}
-              onClick={() => onDifficulty('strict')}
+          <div className="home-difficulty-wrap" ref={modeInfoRef}>
+            <div
+              className="home-seg home-seg-difficulty"
+              role="group"
+              aria-label="Difficulty"
             >
-              Strict
-            </button>
-            <button
-              type="button"
-              className={`home-seg-btn${difficulty === 'dev' ? ' is-on' : ''}`}
-              aria-pressed={difficulty === 'dev'}
-              onClick={() => onDifficulty('dev')}
-            >
-              Dev unlocked
-            </button>
+              <div
+                className={`home-seg-cell${difficulty === 'strict' ? ' is-on' : ''}`}
+              >
+                <button
+                  type="button"
+                  className={`home-seg-btn${difficulty === 'strict' ? ' is-on' : ''}`}
+                  aria-pressed={difficulty === 'strict'}
+                  onClick={() => onDifficulty('strict')}
+                >
+                  Strict
+                </button>
+                <button
+                  type="button"
+                  className="home-mode-info"
+                  title={STRICT_INFO}
+                  aria-label="About Strict mode"
+                  aria-expanded={modeInfo === 'strict'}
+                  onClick={(e) => showModeInfo('strict', e)}
+                >
+                  ⓘ
+                </button>
+              </div>
+              <div
+                className={`home-seg-cell${difficulty === 'dev' ? ' is-on' : ''}`}
+              >
+                <button
+                  type="button"
+                  className={`home-seg-btn${difficulty === 'dev' ? ' is-on' : ''}`}
+                  aria-pressed={difficulty === 'dev'}
+                  onClick={() => onDifficulty('dev')}
+                >
+                  Dev unlocked
+                </button>
+                <button
+                  type="button"
+                  className="home-mode-info"
+                  title={DEV_INFO}
+                  aria-label="About Dev unlocked mode"
+                  aria-expanded={modeInfo === 'dev'}
+                  onClick={(e) => showModeInfo('dev', e)}
+                >
+                  ⓘ
+                </button>
+              </div>
+            </div>
+            {modeInfo && (
+              <div className="home-mode-popover" role="status">
+                <strong>
+                  {modeInfo === 'strict' ? 'Strict' : 'Dev unlocked'}
+                </strong>
+                <p>{modeInfo === 'strict' ? STRICT_INFO : DEV_INFO}</p>
+              </div>
+            )}
           </div>
-          <p className="home-difficulty-hint">
-            Strict locks each next character until you clear the previous one.
-            Dev unlocked opens the whole catalog.
-          </p>
         </div>
 
-        <div className="home-wipe-all">
-          <button type="button" className="link-danger" onClick={handleWipeAll}>
-            Wipe all progress
-          </button>
+        <div
+          className="home-lesson-pills"
+          aria-label="Classic HSK 1–6 lesson progress"
+        >
+          {classicBands.map((band) => (
+            <div key={band.level} className="home-lesson-pill-band">
+              <span className="home-lesson-pill-label" aria-hidden="true">
+                {band.level}
+              </span>
+              <div
+                className="home-lesson-pill-row"
+                role="list"
+                aria-label={`${band.label} lessons`}
+              >
+                {band.lessons.map((lesson) => {
+                  const done =
+                    lesson.entries.length > 0 &&
+                    lesson.entries.every((e) =>
+                      isCharacterCleared(e.character),
+                    )
+                  return (
+                    <span
+                      key={lesson.id}
+                      role="listitem"
+                      className={`home-lesson-pill${done ? ' is-done' : ''}`}
+                      title={`${band.label} ${lesson.label}${done ? ' · done' : ''}`}
+                      aria-label={`${band.label} ${lesson.label}${done ? ', completed' : ', incomplete'}`}
+                    />
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </header>
 
@@ -217,7 +317,7 @@ export default function Home() {
                 <div className="hsk-band-body">
                   {band.lessons.map((lesson) => {
                     const lessonOpen = openLessons.has(lesson.id)
-                    const lessonProg = bandProgress(lesson.entries)
+                    const lessonProgInner = bandProgress(lesson.entries)
                     return (
                       <div
                         key={lesson.id}
@@ -231,7 +331,7 @@ export default function Home() {
                         >
                           <span>{lesson.label}</span>
                           <span className="hsk-lesson-meta">
-                            {lessonProg.cleared}/{lesson.entries.length} ·{' '}
+                            {lessonProgInner.cleared}/{lesson.entries.length} ·{' '}
                             {lesson.entries.length} chars
                           </span>
                           <span aria-hidden="true">
@@ -262,6 +362,16 @@ export default function Home() {
             </section>
           )
         })}
+      </div>
+
+      <div className="home-footer-wipe">
+        <button
+          type="button"
+          className="link-danger home-wipe-link"
+          onClick={handleWipeAll}
+        >
+          wipe all
+        </button>
       </div>
     </main>
   )
