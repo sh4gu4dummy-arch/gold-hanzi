@@ -118,6 +118,28 @@ export function bandProgress(entries: CharacterEntry[]): {
   return { cleared, total: entries.length }
 }
 
+/** Locate the HSK band + lesson that contain this entry in the active view. */
+export function locateEntryBandLesson(
+  entry: CharacterEntry,
+  all: CharacterEntry[],
+  view: HskView,
+): {
+  band: HomeBand
+  lesson: HomeLesson
+  lessonNumber: number
+} | null {
+  const bands = buildBands(all, view)
+  for (const band of bands) {
+    for (let i = 0; i < band.lessons.length; i++) {
+      const lesson = band.lessons[i]!
+      if (lesson.entries.some((e) => e.id === entry.id)) {
+        return { band, lesson, lessonNumber: i + 1 }
+      }
+    }
+  }
+  return null
+}
+
 /**
  * A lesson is cleared when every character in it is fully cleared (all levels).
  */

@@ -21,6 +21,12 @@ export const STROKE_END_T = 0.90
  * Slightly tighter than 0.55 so neighbor ink is less likely to clear another stroke.
  */
 export const STROKE_HIT_INK_FACTOR = 0.48
+/**
+ * Anti-scribble: while drawing the active stroke, unique painted device
+ * pixels (brush coverage, not letter-clipped) may not exceed this multiple
+ * of that stroke's Path2D fill area. Over → try-again, clear this stroke only.
+ */
+export const STROKE_PAINT_CAP = 1.5
 
 /** Hanzi-writer / Make-Me-a-Hanzi viewBox size. */
 export const HANZI_VIEWBOX = 1024
@@ -72,6 +78,11 @@ export type LetterMask = {
   cellInk: number[]
   /** Median polylines mapped into device-pixel canvas space (same as letterBits). */
   mappedStrokes: Point[][]
+  /**
+   * Per-stroke Path2D fill pixel counts (device px, alpha>24), same transform
+   * as letterBits. Used for the 150% paint cap.
+   */
+  strokeAreas: number[]
 }
 
 export type GradeStatus = {
@@ -494,6 +505,28 @@ export function buildLetterMask(
 
   const mappedStrokes = mapMediansToCanvas(medians, cssSize, dpr, contentCenter)
 
+  // Per-stroke fill areas (same raster rules as combined letterBits).
+  const strokeAreas: number[] = []
+  for (const strokePath of strokePaths) {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.clearRect(0, 0, cssSize, cssSize)
+    ctx.fillStyle = '#000'
+    ctx.save()
+    applyHanziTransform(ctx, cssSize, contentCenter)
+    try {
+      ctx.fill(new Path2D(strokePath))
+    } catch {
+      // Ignore malformed path segments.
+    }
+    ctx.restore()
+    const strokeData = ctx.getImageData(0, 0, width, height).data
+    let area = 0
+    for (let i = 0; i < width * height; i++) {
+      if (strokeData[i * 4 + 3]! > 24) area++
+    }
+    strokeAreas.push(area)
+  }
+
   return {
     width,
     height,
@@ -505,6 +538,7 @@ export function buildLetterMask(
     cellLetter,
     cellInk: emptyCells(),
     mappedStrokes,
+    strokeAreas,
   }
 }
 
@@ -652,7 +686,102 @@ export function sampleStroke(points: Point[]): StrokeSample[] {
   return samples
 }
 
-export function evaluateGrade(mask: LetterMask): GradeStatus {
+/** Count set bytes in a bitfield. */
+export function countSetBits(bits: Uint8Array): number {
+  let n = 0
+  for (let i = 0; i < bits.length; i++) {
+    if (bits[i]) n++
+  }
+  return n
+}
+
+/**
+ * Index of the stroke that currently accepts grading credit: first incomplete
+ * in `strokeDone`, or 0 when none yet. Returns `strokeCount` when all done.
+ */
+export function activeStrokeIndex(
+  strokeDone: boolean[] | null | undefined,
+  strokeCount: number,
+): number {
+  if (strokeCount <= 0) return 0
+  if (!strokeDone || strokeDone.length === 0) return 0
+  for (let i = 0; i < strokeCount; i++) {
+    if (!strokeDone[i]) return i
+  }
+  return strokeCount
+}
+
+/**
+ * Stamp brush coverage into paintBits (device pixels; NOT letter-clipped).
+ * Used for the 150% anti-scribble cap on the active stroke.
+ */
+export function stampPaintBits(
+  paintBits: Uint8Array,
+  width: number,
+  height: number,
+  dpr: number,
+  cssX: number,
+  cssY: number,
+  radiusCss = inkWidthCss() / 2,
+): void {
+  const cx = cssX * dpr
+  const cy = cssY * dpr
+  const rad = radiusCss * dpr
+  const rad2 = rad * rad
+  const x0 = Math.max(0, Math.floor(cx - rad))
+  const y0 = Math.max(0, Math.floor(cy - rad))
+  const x1 = Math.min(width - 1, Math.ceil(cx + rad))
+  const y1 = Math.min(height - 1, Math.ceil(cy + rad))
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const dx = x + 0.5 - cx
+      const dy = y + 0.5 - cy
+      if (dx * dx + dy * dy > rad2) continue
+      paintBits[y * width + x] = 1
+    }
+  }
+}
+
+/** Stamp paint coverage along a CSS-px segment. */
+export function stampPaintBitsSegment(
+  paintBits: Uint8Array,
+  width: number,
+  height: number,
+  dpr: number,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+): void {
+  const dist = Math.hypot(x1 - x0, y1 - y0)
+  const steps = Math.max(1, Math.ceil(dist / 2))
+  for (let s = 0; s <= steps; s++) {
+    const t = s / steps
+    stampPaintBits(
+      paintBits,
+      width,
+      height,
+      dpr,
+      x0 + (x1 - x0) * t,
+      y0 + (y1 - y0) * t,
+    )
+  }
+}
+
+export function paintCapExceeded(painted: number, strokeArea: number): boolean {
+  if (strokeArea <= 0) return false
+  return painted > strokeArea * STROKE_PAINT_CAP
+}
+
+/**
+ * Stroke-centric grade. When `prevStrokeDone` is provided, only the first
+ * incomplete stroke (active) may newly pass — later strokes stay incomplete
+ * until the previous one is done (ordered-stroke abuse protection).
+ */
+export function evaluateGrade(
+  mask: LetterMask,
+  prevStrokeDone?: boolean[] | null,
+): GradeStatus {
   // Fat-mask metrics stay available for diagnostics / stamp bookkeeping but
   // never block pass (stroke-centric grading).
   const inked = mask.inkBits.reduce((n, v) => n + v, 0)
@@ -677,8 +806,24 @@ export function evaluateGrade(mask: LetterMask): GradeStatus {
   let totalHits = 0
   let totalSamples = 0
   const strokeDone: boolean[] = []
+  const n = mask.mappedStrokes.length
+  const active = activeStrokeIndex(prevStrokeDone, n)
 
-  for (const stroke of mask.mappedStrokes) {
+  for (let si = 0; si < n; si++) {
+    const stroke = mask.mappedStrokes[si]!
+
+    // Already completed before this check — keep credit; do not re-open.
+    if (si < active) {
+      strokeDone.push(true)
+      continue
+    }
+    // Subsequent strokes: no grading credit until the active stroke passes.
+    if (si > active) {
+      strokeDone.push(false)
+      strokesReady = false
+      continue
+    }
+
     const samples = sampleStroke(stroke)
     if (samples.length === 0) {
       // Vacuous: nothing to follow / finish.
@@ -722,7 +867,7 @@ export function evaluateGrade(mask: LetterMask): GradeStatus {
   }
 
   const cover = totalSamples > 0 ? totalHits / totalSamples : 0
-  const doneCount = strokeDone.reduce((n, d) => n + (d ? 1 : 0), 0)
+  const doneCount = strokeDone.reduce((nDone, d) => nDone + (d ? 1 : 0), 0)
 
   return {
     cover,

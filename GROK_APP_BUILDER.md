@@ -49,6 +49,16 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-19 — Ordered strokes, 150% try-again, home bar progress (v0.022)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `grading.ts`, `TracePad.tsx`, `Practice.tsx`, `homeCatalog.ts`, `index.css`, `version.ts`, `_specs/trace-grading.md`
+
+- Practice Home bar shows concise **lesson + band** char-clearance for the current character (`L{n} a/b · HSK k c/d`).
+- **Ordered strokes:** `evaluateGrade(mask, prevStrokeDone)` only the active (first incomplete) stroke may newly pass.
+- **150% paint cap:** brush-coverage bits vs per-stroke Path2D fill area; over → toast "try again", restore that stroke’s baseline ink only.
+- Anti-scribble first steps shipped (order + paint cap).
+
 ### 2026-09-19 — Circled levels, demo top pair, dock and wipe polish (v0.021)
 
 **Who:** gold-hanzi (repo Grok)  

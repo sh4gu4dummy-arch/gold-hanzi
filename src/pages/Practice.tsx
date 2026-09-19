@@ -4,7 +4,9 @@ import ThemeToggle from '../components/ThemeToggle'
 import TracePad, { DEFAULT_ACCENT } from '../components/TracePad'
 import { CHARACTERS, getCharacter } from '../data/characters'
 import {
+  bandProgress,
   entriesForView,
+  locateEntryBandLesson,
   nextUnlockedEntry,
   strokeLevelCount,
 } from '../lib/homeCatalog'
@@ -43,6 +45,25 @@ export default function Practice() {
     if (!entry) return null
     return nextUnlockedEntry(entry.id, ordered, getDifficultyMode())
   }, [entry, ordered, progress.beaten.length, finishedChar])
+
+  /** Current character's HSK band/lesson completion (Home accordion metrics). */
+  const bandLessonMeta = useMemo(() => {
+    if (!entry) return null
+    const view = getHskView()
+    const loc = locateEntryBandLesson(entry, CHARACTERS, view)
+    if (!loc) return null
+    const lessonChars = bandProgress(loc.lesson.entries)
+    const bandChars = bandProgress(loc.band.entries)
+    return {
+      lessonNumber: loc.lessonNumber,
+      lessonCleared: lessonChars.cleared,
+      lessonTotal: lessonChars.total,
+      bandLabel: loc.band.label,
+      bandCleared: bandChars.cleared,
+      bandTotal: bandChars.total,
+    }
+    // progressByChar updates after markLevelBeaten (localStorage already written).
+  }, [entry, progressByChar])
 
   const allLevelsCleared =
     !!entry &&
@@ -97,6 +118,18 @@ export default function Practice() {
                 </>
               )}
             </p>
+            {bandLessonMeta && (
+              <p
+                className="practice-meta-band"
+                title={`${bandLessonMeta.bandLabel}: ${bandLessonMeta.bandCleared}/${bandLessonMeta.bandTotal} chars · Lesson ${bandLessonMeta.lessonNumber}: ${bandLessonMeta.lessonCleared}/${bandLessonMeta.lessonTotal} cleared`}
+              >
+                L{bandLessonMeta.lessonNumber}{' '}
+                {bandLessonMeta.lessonCleared}/{bandLessonMeta.lessonTotal}
+                {' · '}
+                {bandLessonMeta.bandLabel} {bandLessonMeta.bandCleared}/
+                {bandLessonMeta.bandTotal}
+              </p>
+            )}
           </div>
           <div className="practice-bar-actions">
             <span

@@ -28,3 +28,19 @@ Fat-mask COVER / cells remain informational and **must not** gate pass.
 - `inkWidthCss()` ≈ clamp(16, 4vw, 22) (fallback `INK_WIDTH = 18`).
 - Letter mask: rasterize vendored Make-Me-a-Hanzi stroke Path2D fills onto an offscreen canvas (hanzi 1024 viewBox, `HANZI_PADDING`, HanziWriter `HANZI_Y_MIN` (-124) origin, y-flip + content-center — same transform as TracePad guides / hanzi-writer).
 - `finish()` when stroke checks pass: `done=true`, `onDone()`, mark level beaten.
+
+## Ordered strokes (v0.022)
+
+Only the **active** stroke (first incomplete in `prevStrokeDone`) accepts grading credit.
+`evaluateGrade(mask, prevStrokeDone)` keeps earlier strokes done, evaluates only the active
+index, and forces later strokes incomplete until the previous one passes. Player must finish
+strokes in order.
+
+## 150% paint cap (v0.022)
+
+While drawing the active stroke, unique brush-coverage device pixels (`stampPaintBits`, not
+letter-clipped) are counted. If painted area exceeds `STROKE_PAINT_CAP` (1.5) × that stroke’s
+Path2D fill area (`strokeAreas[i]` from `buildLetterMask`), TracePad auto-stops the gesture,
+shows a **try again** toast, and restores the ink/grade baseline from when the stroke became
+active (earlier completed strokes’ green/progress kept).
+

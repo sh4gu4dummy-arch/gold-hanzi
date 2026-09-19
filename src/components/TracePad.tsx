@@ -10,15 +10,19 @@ import {
 import type { StrokeCharacterData } from '../data/strokeData'
 import {
   HANZI_PADDING,
+  activeStrokeIndex,
   applyHanziTransform,
   buildLetterMask,
   clearInk,
   contentCenterFromMedians,
+  countSetBits,
   earlyMedianTangent,
   evaluateGrade,
   hanziScale,
   inkWidthCss,
+  paintCapExceeded,
   stampInkSegment,
+  stampPaintBitsSegment,
 } from '../lib/grading'
 import type { GradeStatus, LetterMask } from '../lib/grading'
 import {
@@ -550,6 +554,14 @@ export default function TracePad({
   const lastStrokeDoneRef = useRef<boolean[] | null>(null)
   /** True after a stroke passes in the current pen gesture — clear leftover purple on pen-up. */
   const gesturePassedStrokeRef = useRef(false)
+  /**
+   * Unique brush-coverage bits for the active stroke attempt (device px).
+   * Compared to strokeAreas[active] * 1.5 for anti-scribble.
+   */
+  const paintBitsRef = useRef<Uint8Array | null>(null)
+  /** Ink snapshot when the current stroke became active (restore on try-again). */
+  const strokeBaselineRef = useRef<InkSnapshot | null>(null)
+  const tryAgainTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const demoEnabledRef = useRef(getDemoEnabled())
 
   const [strokeData, setStrokeData] = useState<StrokeCharacterData | undefined>(
@@ -606,6 +618,8 @@ export default function TracePad({
   const [demoEnabled, setDemoEnabledState] = useState(() => getDemoEnabled())
   const [soundEnabled, setSoundEnabledState] = useState(() => getSoundEnabled())
   const [voiceNote, setVoiceNote] = useState<string | null>(null)
+  /** Short “try again” toast after 150% paint-cap reject. */
+  const [tryAgainToast, setTryAgainToast] = useState(false)
   /** Completed pen gestures (pen-down→up) this writing attempt — for Undo. */
   const gestureStackRef = useRef<InkSnapshot[]>([])
   const [gestureCount, setGestureCount] = useState(0)
@@ -788,6 +802,64 @@ export default function TracePad({
     }
   }, [])
 
+  const clearPaintBits = useCallback(() => {
+    const bits = paintBitsRef.current
+    if (bits) bits.fill(0)
+  }, [])
+
+  const ensurePaintBits = useCallback((mask: LetterMask): Uint8Array => {
+    const need = mask.width * mask.height
+    let bits = paintBitsRef.current
+    if (!bits || bits.length !== need) {
+      bits = new Uint8Array(need)
+      paintBitsRef.current = bits
+    }
+    return bits
+  }, [])
+
+  const showTryAgainToast = useCallback(() => {
+    if (tryAgainTimerRef.current) {
+      clearTimeout(tryAgainTimerRef.current)
+    }
+    setTryAgainToast(true)
+    tryAgainTimerRef.current = setTimeout(() => {
+      setTryAgainToast(false)
+      tryAgainTimerRef.current = null
+    }, 1400)
+  }, [])
+
+  /** Baseline for the active stroke — restore on 150% try-again. */
+  const captureStrokeBaseline = useCallback(() => {
+    // Inline snapshot (same as captureInkSnapshot) so we don't depend on order.
+    const mask = maskRef.current
+    if (!mask) {
+      strokeBaselineRef.current = null
+      clearPaintBits()
+      return
+    }
+    const store = inkStoreRef.current
+    let storePixels: ImageData | null = null
+    if (store && store.width > 0 && store.height > 0) {
+      const ctx = store.getContext('2d')
+      if (ctx) {
+        try {
+          storePixels = ctx.getImageData(0, 0, store.width, store.height)
+        } catch {
+          storePixels = null
+        }
+      }
+    }
+    strokeBaselineRef.current = {
+      storePixels,
+      inkBits: new Uint8Array(mask.inkBits),
+      cellInk: mask.cellInk.slice(),
+      strokeDone: prevStrokeDoneRef.current
+        ? prevStrokeDoneRef.current.slice()
+        : null,
+    }
+    clearPaintBits()
+  }, [clearPaintBits])
+
   const applyInkSnapshot = useCallback(
     (snap: InkSnapshot | null) => {
       const store = ensureInkStore()
@@ -797,13 +869,21 @@ export default function TracePad({
         clearCanvasPixels(store)
         prevStrokeDoneRef.current = null
         lastStrokeDoneRef.current = null
+        clearPaintBits()
         if (mask) {
           clearInk(mask)
-          const status = evaluateGrade(mask)
+          const status = evaluateGrade(mask, null)
           setLiveGrade(status)
           paintGuide(levelRef.current, status.strokeDone)
+          strokeBaselineRef.current = {
+            storePixels: null,
+            inkBits: new Uint8Array(mask.inkBits),
+            cellInk: mask.cellInk.slice(),
+            strokeDone: null,
+          }
         } else {
           setLiveGrade(null)
+          strokeBaselineRef.current = null
           if (!showMyStrokesRef.current) {
             paintGuide(levelRef.current, null)
           } else {
@@ -851,15 +931,27 @@ export default function TracePad({
         clearCanvasPixels(ink)
       }
 
-      const status = mask ? evaluateGrade(mask) : null
+      const status = mask
+        ? evaluateGrade(mask, prevStrokeDoneRef.current)
+        : null
       setLiveGrade(status)
       if (!showMyStrokesRef.current) {
         paintGuide(levelRef.current, status?.strokeDone ?? null)
       } else {
         clearGuideCanvas(guideCanvasRef.current)
       }
+      clearPaintBits()
+      // Undo/restore: treat restored state as the new stroke baseline.
+      strokeBaselineRef.current = snap
+        ? {
+            storePixels: snap.storePixels,
+            inkBits: new Uint8Array(snap.inkBits),
+            cellInk: snap.cellInk.slice(),
+            strokeDone: snap.strokeDone ? snap.strokeDone.slice() : null,
+          }
+        : null
     },
-    [ensureInkStore, paintGuide],
+    [clearPaintBits, ensureInkStore, paintGuide],
   )
 
   const clearInkCanvas = useCallback(() => {
@@ -867,14 +959,24 @@ export default function TracePad({
     clearCanvasPixels(inkCanvasRef.current)
     clearCanvasPixels(inkStoreRef.current)
     prevStrokeDoneRef.current = null
+    lastStrokeDoneRef.current = null
+    clearPaintBits()
+    strokeBaselineRef.current = null
     if (maskRef.current) {
       clearInk(maskRef.current)
-      const status = evaluateGrade(maskRef.current)
+      const status = evaluateGrade(maskRef.current, null)
       setLiveGrade(status)
       if (!showMyStrokesRef.current) {
         paintGuide(levelRef.current, status.strokeDone)
       } else {
         clearGuideCanvas(guideCanvasRef.current)
+      }
+      // Fresh attempt starts at stroke 0.
+      strokeBaselineRef.current = {
+        storePixels: null,
+        inkBits: new Uint8Array(maskRef.current.inkBits),
+        cellInk: maskRef.current.cellInk.slice(),
+        strokeDone: null,
       }
     } else {
       setLiveGrade(null)
@@ -884,7 +986,7 @@ export default function TracePad({
         clearGuideCanvas(guideCanvasRef.current)
       }
     }
-  }, [paintGuide, resetGestureHistory])
+  }, [clearPaintBits, paintGuide, resetGestureHistory])
 
   const hideWriterHost = useCallback(() => {
     const host = writerHostRef.current
@@ -973,12 +1075,21 @@ export default function TracePad({
       await rebuildMask()
       if (sessionRef.current !== session) return
       const mask = maskRef.current
-      const status = mask ? evaluateGrade(mask) : null
+      prevStrokeDoneRef.current = null
+      const status = mask ? evaluateGrade(mask, null) : null
       setLiveGrade(status)
       paintGuide(levelNum, status?.strokeDone ?? null)
+      if (mask) ensurePaintBits(mask)
+      captureStrokeBaseline()
       setPhase('writing')
     },
-    [hideWriterHost, paintGuide, rebuildMask],
+    [
+      captureStrokeBaseline,
+      ensurePaintBits,
+      hideWriterHost,
+      paintGuide,
+      rebuildMask,
+    ],
   )
 
   const finishPass = useCallback(() => {
@@ -1046,7 +1157,8 @@ export default function TracePad({
   const checkGrade = useCallback(() => {
     const mask = maskRef.current
     if (!mask || doneRef.current) return
-    const status = evaluateGrade(mask)
+    // Ordered strokes: only the first incomplete stroke (vs prev) may pass.
+    const status = evaluateGrade(mask, prevStrokeDoneRef.current)
     setLiveGrade(status)
 
     const showInk = showMyStrokesRef.current
@@ -1076,10 +1188,15 @@ export default function TracePad({
       if (newlyDone) gesturePassedStrokeRef.current = true
     }
 
+    // New active stroke → reset paint-cap accumulator + baseline for retry.
+    if (newlyDone && !status.pass) {
+      captureStrokeBaseline()
+    }
+
     if (status.pass) {
       finishPass()
     }
-  }, [finishPass, paintGuide])
+  }, [captureStrokeBaseline, finishPass, paintGuide])
 
   const runDemoThenWrite = useCallback(
     async (levelNum: number) => {
@@ -1391,6 +1508,81 @@ export default function TracePad({
     selectLevel(level + 1)
   }
 
+
+  useEffect(() => {
+    return () => {
+      if (tryAgainTimerRef.current) {
+        clearTimeout(tryAgainTimerRef.current)
+      }
+    }
+  }, [])
+
+  /**
+   * 150% paint cap: restore active-stroke baseline, toast "try again",
+   * keep earlier completed strokes' green/progress.
+   */
+  const rejectStrokeOverpaint = useCallback(
+    (pointerId?: number) => {
+      const canvas = inkCanvasRef.current
+      drawingRef.current = false
+      lastPtRef.current = null
+      if (canvas != null && pointerId != null) {
+        try {
+          canvas.releasePointerCapture(pointerId)
+        } catch {
+          /* ignore */
+        }
+      }
+      const baseline = strokeBaselineRef.current
+      applyInkSnapshot(baseline)
+      // Re-assert baseline after restore (applyInkSnapshot also sets it).
+      if (baseline) {
+        strokeBaselineRef.current = {
+          storePixels: baseline.storePixels,
+          inkBits: new Uint8Array(baseline.inkBits),
+          cellInk: baseline.cellInk.slice(),
+          strokeDone: baseline.strokeDone ? baseline.strokeDone.slice() : null,
+        }
+      }
+      clearPaintBits()
+      gesturePassedStrokeRef.current = false
+      showTryAgainToast()
+    },
+    [applyInkSnapshot, clearPaintBits, showTryAgainToast],
+  )
+
+  /** Stamp grading ink + paint-coverage; return true if 150% cap tripped. */
+  const stampStrokePaint = useCallback(
+    (
+      mask: LetterMask,
+      x0: number,
+      y0: number,
+      x1: number,
+      y1: number,
+    ): boolean => {
+      stampInkSegment(mask, x0, y0, x1, y1)
+      const paintBits = ensurePaintBits(mask)
+      stampPaintBitsSegment(
+        paintBits,
+        mask.width,
+        mask.height,
+        mask.dpr,
+        x0,
+        y0,
+        x1,
+        y1,
+      )
+      const active = activeStrokeIndex(
+        prevStrokeDoneRef.current,
+        mask.mappedStrokes.length,
+      )
+      const area = mask.strokeAreas[active] ?? 0
+      const painted = countSetBits(paintBits)
+      return paintCapExceeded(painted, area)
+    },
+    [ensurePaintBits],
+  )
+
   // Pointer drawing on ink canvas (+ offscreen store).
   useEffect(() => {
     const canvas = inkCanvasRef.current
@@ -1427,7 +1619,10 @@ export default function TracePad({
         ctx.arc(pt.x, pt.y, inkW / 2, 0, Math.PI * 2)
         ctx.fill()
       }
-      stampInkSegment(mask, pt.x, pt.y, pt.x, pt.y)
+      if (stampStrokePaint(mask, pt.x, pt.y, pt.x, pt.y)) {
+        rejectStrokeOverpaint(e.pointerId)
+        return
+      }
       checkGrade()
     }
 
@@ -1449,7 +1644,10 @@ export default function TracePad({
         ctx.lineTo(pt.x, pt.y)
         ctx.stroke()
       }
-      stampInkSegment(mask, prev.x, prev.y, pt.x, pt.y)
+      if (stampStrokePaint(mask, prev.x, prev.y, pt.x, pt.y)) {
+        rejectStrokeOverpaint(e.pointerId)
+        return
+      }
       checkGrade()
     }
 
@@ -1492,7 +1690,15 @@ export default function TracePad({
       canvas.removeEventListener('pointerup', onUp)
       canvas.removeEventListener('pointercancel', onUp)
     }
-  }, [accent, phase, checkGrade, ensureInkStore, captureInkSnapshot])
+  }, [
+    accent,
+    phase,
+    checkGrade,
+    ensureInkStore,
+    captureInkSnapshot,
+    stampStrokePaint,
+    rejectStrokeOverpaint,
+  ])
 
   const toggleDemoEnabled = () => {
     const next = !demoEnabledRef.current
@@ -1519,7 +1725,7 @@ export default function TracePad({
     const done =
       lastStrokeDoneRef.current ??
       liveGrade?.strokeDone ??
-      (mask ? evaluateGrade(mask).strokeDone : null) ??
+      (mask ? evaluateGrade(mask, prevStrokeDoneRef.current).strokeDone : null) ??
       (strokeData ? strokeData.strokes.map(() => true) : null)
     if (next) {
       // Ink only — no green underlay (mutually exclusive with guide).
@@ -1910,6 +2116,11 @@ export default function TracePad({
         <p className="trace-voice-note" role="status">
           {voiceNote}
         </p>
+      )}
+      {tryAgainToast && (
+        <div className="trace-try-again-toast" role="status" aria-live="polite">
+          try again
+        </div>
       )}
 
       {phase === 'passed' && level < levelCount && (
