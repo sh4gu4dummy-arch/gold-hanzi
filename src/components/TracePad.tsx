@@ -34,7 +34,6 @@ import { getDemoEnabled, setDemoEnabled } from '../lib/demoPref'
 import { getSoundEnabled, setSoundEnabled } from '../lib/soundPref'
 import { cancelSpeech, speakHanzi } from '../lib/speak'
 import type { SpeakResult } from '../lib/speak'
-import { Link } from 'react-router-dom'
 
 export const DEFAULT_ACCENT = '#7C5CBF'
 /** Guide path fill when a stroke passes median grading (hit fraction + end band). */
@@ -45,24 +44,11 @@ const GUIDE_ANIM_SPEED = 0.45
 const GUIDE_HIGHLIGHT_SPEED = 0.5
 const AUTO_ADVANCE_MS = 1000
 
-type NextCharacterInfo = {
-  id: string
-  character: string
-  pinyin: string
-}
-
 type TracePadProps = {
   character: string
   accent?: string
   onDone?: () => void
   onProgressChange?: (progress: CharProgress, levelCount: number) => void
-  /**
-   * When all levels of this character are cleared:
-   * - object → Next character button
-   * - null → end-of-list / all caught up
-   * - undefined → still working through levels (hide next-char UI)
-   */
-  nextCharacter?: NextCharacterInfo | null
   /**
    * Optional host element (Practice header under big pinyin).
    * When set, the level-pip strip is portaled there instead of under
@@ -540,7 +526,6 @@ export default function TracePad({
   accent = DEFAULT_ACCENT,
   onDone,
   onProgressChange,
-  nextCharacter,
   levelPipsHost = null,
 }: TracePadProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -1707,7 +1692,6 @@ export default function TracePad({
                   : `Beat level ${L - 1} to unlock`
               }
             >
-              <span className="level-pip-dot" />
               <span className="level-pip-num">{L}</span>
             </button>
           )
@@ -1774,66 +1758,85 @@ export default function TracePad({
         ? createPortal(levelPipsStrip, levelPipsHost)
         : null}
 
-      <div className="trace-stage-slot">
-
-      <div
-        ref={wrapRef}
-        className={`trace-stage${phase === 'passed' ? ' is-done' : ''}`}
-        style={{ ['--accent' as string]: accent }}
-      >
-        <div className="tianzige" aria-hidden="true">
-          <span className="tianzige-h" />
-          <span className="tianzige-v" />
-          <span className="tianzige-d1" />
-          <span className="tianzige-d2" />
-        </div>
-
-        <canvas
-          ref={guideCanvasRef}
-          className="guide-canvas"
-          aria-hidden="true"
-        />
-
+      <div className="trace-stage-block">
         <div
-          ref={writerHostRef}
-          className="hanzi-host"
-          aria-hidden={phase !== 'demo'}
-        />
-
-        <canvas
-          ref={inkCanvasRef}
-          className="trace-canvas"
-          aria-label={`Trace character ${character}, level ${level}`}
-          style={{
-            pointerEvents: phase === 'writing' ? 'auto' : 'none',
-            opacity: phase === 'demo' ? 0 : 1,
-          }}
-        />
-
-        {loadError && (
-          <div className="trace-error" role="alert">
-            {loadError}
-          </div>
-        )}
-        {phase === 'passed' && (
-          <div className="trace-success" role="status">
-            <span className="trace-check">✓</span>
-            <span>Level {level} cleared</span>
-          </div>
-        )}
-        {(phase === 'demo' || phase === 'writing' || phase === 'passed') && (
+          className="trace-stage-pair"
+          role="group"
+          aria-label="Demo and skip controls"
+        >
           <button
             type="button"
-            className="trace-corner-btn"
-            onClick={phase === 'demo' ? skipGuide : replayGuide}
-            disabled={!!loadError}
-            aria-label={phase === 'demo' ? 'Skip demo' : 'Replay'}
-            title={phase === 'demo' ? 'Skip demo' : 'Replay'}
+            className={`trace-pair-btn${demoEnabled ? ' is-on' : ''}`}
+            onClick={toggleDemoEnabled}
+            aria-pressed={demoEnabled}
+            aria-label={demoEnabled ? 'Demo on' : 'Demo off'}
+            title="Animated stroke-order demo"
           >
-            {phase === 'demo' ? 'Skip' : 'Replay'}
+            <span aria-hidden="true">{demoEnabled ? '▶' : '⏸'}</span>
+            <span>Demo</span>
           </button>
-        )}
-      </div>
+          {(phase === 'demo' || phase === 'writing' || phase === 'passed') && (
+            <button
+              type="button"
+              className="trace-pair-btn is-accent"
+              onClick={phase === 'demo' ? skipGuide : replayGuide}
+              disabled={!!loadError}
+              aria-label={phase === 'demo' ? 'Skip demo' : 'Replay'}
+              title={phase === 'demo' ? 'Skip demo' : 'Replay'}
+            >
+              {phase === 'demo' ? 'Skip' : 'Replay'}
+            </button>
+          )}
+        </div>
+
+        <div className="trace-stage-slot">
+          <div
+            ref={wrapRef}
+            className={`trace-stage${phase === 'passed' ? ' is-done' : ''}`}
+            style={{ ['--accent' as string]: accent }}
+          >
+            <div className="tianzige" aria-hidden="true">
+              <span className="tianzige-h" />
+              <span className="tianzige-v" />
+              <span className="tianzige-d1" />
+              <span className="tianzige-d2" />
+            </div>
+
+            <canvas
+              ref={guideCanvasRef}
+              className="guide-canvas"
+              aria-hidden="true"
+            />
+
+            <div
+              ref={writerHostRef}
+              className="hanzi-host"
+              aria-hidden={phase !== 'demo'}
+            />
+
+            <canvas
+              ref={inkCanvasRef}
+              className="trace-canvas"
+              aria-label={`Trace character ${character}, level ${level}`}
+              style={{
+                pointerEvents: phase === 'writing' ? 'auto' : 'none',
+                opacity: phase === 'demo' ? 0 : 1,
+              }}
+            />
+
+            {loadError && (
+              <div className="trace-error" role="alert">
+                {loadError}
+              </div>
+            )}
+            {phase === 'passed' && (
+              <div className="trace-success" role="status">
+                <span className="trace-check">✓</span>
+                <span>Level {level} cleared</span>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       <div
@@ -1841,19 +1844,6 @@ export default function TracePad({
         role="toolbar"
         aria-label="Practice controls"
       >
-        <button
-          type="button"
-          className={`dock-btn${demoEnabled ? ' is-on' : ''}`}
-          onClick={toggleDemoEnabled}
-          aria-pressed={demoEnabled}
-          aria-label={demoEnabled ? 'Demo on' : 'Demo off'}
-          title="Animated stroke-order demo"
-        >
-          <span className="dock-btn-icon" aria-hidden="true">
-            {demoEnabled ? '▶' : '⏸'}
-          </span>
-          <span className="dock-btn-label">Demo</span>
-        </button>
         <button
           type="button"
           className={`dock-btn${showMyStrokes ? ' is-on' : ''}`}
@@ -1911,7 +1901,9 @@ export default function TracePad({
           <span className="dock-btn-icon" aria-hidden="true">
             🎧
           </span>
-          <span className="dock-btn-label">Auto</span>
+          <span className="dock-btn-label">
+            {soundEnabled ? 'Auto' : 'Off'}
+          </span>
         </button>
       </div>
       {voiceNote && (
@@ -1920,32 +1912,16 @@ export default function TracePad({
         </p>
       )}
 
-      {((phase === 'passed' && level < levelCount) ||
-        nextCharacter !== undefined) && (
+      {phase === 'passed' && level < levelCount && (
         <div className="trace-actions">
-          {phase === 'passed' && level < levelCount && (
-            <button
-              type="button"
-              className="btn btn-primary btn-compact"
-              onClick={goNextLevel}
-              disabled={!isLevelUnlocked(character, level + 1)}
-            >
-              Next level
-            </button>
-          )}
-          {nextCharacter !== undefined &&
-            (nextCharacter ? (
-              <Link
-                className="btn btn-primary btn-compact next-char-btn"
-                to={`/practice/${nextCharacter.id}`}
-              >
-                Next character · {nextCharacter.character}
-              </Link>
-            ) : (
-              <Link className="btn btn-ghost btn-compact" to="/">
-                All caught up
-              </Link>
-            ))}
+          <button
+            type="button"
+            className="btn btn-primary btn-compact"
+            onClick={goNextLevel}
+            disabled={!isLevelUnlocked(character, level + 1)}
+          >
+            Next level
+          </button>
         </div>
       )}
 

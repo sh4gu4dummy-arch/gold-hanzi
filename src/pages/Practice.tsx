@@ -131,17 +131,6 @@ export default function Practice() {
         character={entry.character}
         accent={DEFAULT_ACCENT}
         levelPipsHost={levelPipsHost}
-        nextCharacter={
-          allLevelsCleared
-            ? nextEntry
-              ? {
-                  id: nextEntry.id,
-                  character: nextEntry.character,
-                  pinyin: nextEntry.pinyin,
-                }
-              : null
-            : undefined
-        }
         onDone={() => setFinishedChar(entry.character)}
         onProgressChange={(nextProgress) =>
           setProgressByChar((prev) => ({
@@ -151,21 +140,11 @@ export default function Practice() {
         }
       />
 
-      <div className="practice-wipe-row">
-        <button
-          type="button"
-          className="link-danger"
-          onClick={handleWipeChar}
-        >
-          Wipe this character’s progress
-        </button>
-      </div>
-
-      {finished && allLevelsCleared && (
-        <div className="next-char-banner">
-          {nextEntry ? (
+      <div className="practice-footer-row">
+        {finished && allLevelsCleared &&
+          (nextEntry ? (
             <Link
-              className="btn btn-primary next-char-btn"
+              className="btn btn-primary next-char-btn next-char-btn-sm"
               to={`/practice/${nextEntry.id}`}
             >
               Next character · {nextEntry.character} {nextEntry.pinyin}
@@ -175,9 +154,15 @@ export default function Practice() {
               All caught up!{' '}
               <Link to="/">Back to home</Link>
             </p>
-          )}
-        </div>
-      )}
+          ))}
+        <button
+          type="button"
+          className="link-danger"
+          onClick={handleWipeChar}
+        >
+          Wipe this character's progress
+        </button>
+      </div>
     </main>
   )
 }

@@ -49,6 +49,16 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-19 — Circled levels, demo top pair, dock and wipe polish (v0.021)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `Practice.tsx`, `TracePad.tsx`, `index.css`, `version.ts`
+
+- Level pips restyled to **circled numbers** (number inside circle button); scroll / center-active / end-clamp unchanged under pinyin.
+- Demo on/off moved beside Skip/Replay in a pair **above** the tracing grid; Demo removed from bottom dock.
+- Dock Auto label reads **Off** when auto sound is off; slightly larger dock icons/labels.
+- Next character + Wipe this character's progress share one footer row; Next a bit smaller; ASCII apostrophe in Wipe copy.
+
 ### 2026-09-19 — Finish draft UI: levels under pinyin, labeled dock, sound split (v0.020)
 
 **Who:** gold-hanzi (repo Grok)  
