@@ -26,6 +26,7 @@ jobs:
           node-version: '20'
           cache: npm
       - run: npm ci
+      - run: node scripts/generate-snappy-data.mjs
       - run: npx vite build --base=/gold-hanzi/
       - name: SPA fallback for client routes
         run: cp dist/index.html dist/404.html

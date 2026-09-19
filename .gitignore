@@ -23,3 +23,5 @@ dist-ssr
 *.sln
 *.sw?
 _build/
+# Build-time lesson stroke chunks (scripts/generate-snappy-data.mjs)
+src/data/strokeLessons/

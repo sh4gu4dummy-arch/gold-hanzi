@@ -1,8 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import ThemeToggle from '../components/ThemeToggle'
 import TracePad, { DEFAULT_ACCENT } from '../components/TracePad'
-import { CHARACTERS, getCharacter } from '../data/characters'
+import {
+  ensureCatalogForView,
+  ensureCharacterEntry,
+  getCatalog,
+  getCharacter,
+} from '../data/characters'
+import type { CharacterEntry } from '../data/characters'
 import {
   bandProgress,
   entriesForView,
@@ -28,7 +34,38 @@ import { APP_VERSION } from '../version'
 
 export default function Practice() {
   const { id = '' } = useParams()
-  const entry = getCharacter(id)
+  const [entry, setEntry] = useState<CharacterEntry | undefined>(() =>
+    getCharacter(id),
+  )
+  const [entryResolved, setEntryResolved] = useState(() => !!getCharacter(id))
+  const [catalogTick, setCatalogTick] = useState(0)
+
+  // Resolve classic sync; lazy-load HSK 3.0 extras only if id is missing.
+  useEffect(() => {
+    let cancelled = false
+    const hit = getCharacter(id)
+    if (hit) {
+      setEntry(hit)
+      setEntryResolved(true)
+      // If user is on v3 view, still warm the extras for next/ordered.
+      if (getHskView() === 'v3') {
+        void ensureCatalogForView('v3').then(() => {
+          if (!cancelled) setCatalogTick((n) => n + 1)
+        })
+      }
+      return
+    }
+    setEntryResolved(false)
+    void ensureCharacterEntry(id).then((found) => {
+      if (cancelled) return
+      setEntry(found)
+      setEntryResolved(true)
+      setCatalogTick((n) => n + 1)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [id])
 
   const levelCount = entry ? strokeLevelCount(entry.character) : 0
 
@@ -50,10 +87,10 @@ export default function Practice() {
     : { beaten: [] }
 
   const ordered = useMemo(
-    () => entriesForView(CHARACTERS, getHskView()),
-    // Recompute when navigating characters; prefs read from localStorage.
+    () => entriesForView(getCatalog(), getHskView()),
+    // Recompute when navigating characters / v3 catalog merges.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [entry?.id],
+    [entry?.id, catalogTick],
   )
 
   const nextEntry = useMemo(() => {
@@ -65,7 +102,7 @@ export default function Practice() {
   const bandLessonMeta = useMemo(() => {
     if (!entry) return null
     const view = getHskView()
-    const loc = locateEntryBandLesson(entry, CHARACTERS, view)
+    const loc = locateEntryBandLesson(entry, getCatalog(), view)
     if (!loc) return null
     const lessonChars = bandProgress(loc.lesson.entries)
     const bandChars = bandProgress(loc.band.entries)
@@ -78,7 +115,7 @@ export default function Practice() {
       bandTotal: bandChars.total,
     }
     // progressByChar updates after markLevelBeaten (localStorage already written).
-  }, [entry, progressByChar])
+  }, [entry, progressByChar, catalogTick])
 
   const allLevelsCleared =
     !!entry &&
@@ -86,6 +123,14 @@ export default function Practice() {
     progress.beaten.length >= levelCount &&
     (finishedChar === entry.character ||
       progress.beaten.length >= levelCount)
+
+  if (!entryResolved) {
+    return (
+      <main className="page practice">
+        <p className="home-empty">Loading character…</p>
+      </main>
+    )
+  }
 
   if (!entry) {
     return <Navigate to="/" replace />

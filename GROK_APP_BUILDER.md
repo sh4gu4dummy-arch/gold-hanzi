@@ -49,6 +49,17 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-19 — Snappy classic path; no HSK 3.0 leak (v0.029)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `characters.ts`, `characters-classic.json`, `characters-v3-extra.json`, `charLessons.ts`, `strokeData.ts`, `strokeLessons/` (build), `progress.ts`, `Home.tsx`, `Practice.tsx`, `scripts/generate-snappy-data.mjs`, `vite.config.ts`, `version.ts`
+
+- **Split catalog:** classic HSK 1–6 meta eager; HSK 3.0-only extras (+phrases) lazy via `ensureV3Catalog()` only after toggling HSK 3.0 / v3-only Practice deep-link. No eager full 3k `characters.json` on classic path.
+- **Lesson stroke chunks:** build generates ~225 classic + ~252 v3 lesson JSON chunks (gitignored); opening a lesson = one request (+ prefetch next). Removed ~3000 per-char Vite micro-chunks from the classic hot path.
+- **Lazy tiles:** band body mounts only when expanded; char grids only when lesson open.
+- **Progress cache:** in-memory store + beaten-length map; invalidate on wipe / mark beaten so Home batteries don’t re-parse localStorage thousands of times per render.
+- **Leak audit:** while `hskView==='classic'`, no v3 catalog parse and no v3 lesson-module fetches.
+
 ### 2026-09-19 — HSK 3.0 through band 9 lazy + phrases toggle (v0.028)
 
 **Who:** gold-hanzi (repo Grok)  

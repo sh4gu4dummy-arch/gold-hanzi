@@ -1,5 +1,36 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { spawnSync } from 'node:child_process'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { defineConfig, type Plugin } from 'vite'
+
+const root = path.dirname(fileURLToPath(import.meta.url))
+
+/** Ensure lesson stroke chunks + split catalogs exist before Vite analyzes globs. */
+function snappyDataPlugin(): Plugin {
+  let ran = false
+  const run = () => {
+    if (ran) return
+    ran = true
+    const script = path.join(root, 'scripts/generate-snappy-data.mjs')
+    const result = spawnSync(process.execPath, [script], {
+      cwd: root,
+      stdio: 'inherit',
+    })
+    if (result.status !== 0) {
+      throw new Error('generate-snappy-data.mjs failed')
+    }
+  }
+  return {
+    name: 'snappy-data',
+    buildStart() {
+      run()
+    },
+    configureServer() {
+      run()
+    },
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -8,7 +39,7 @@ export default defineConfig({
   // /practice/assets/... (HTML fallback). GH Pages overrides via
   // `vite build --base=/gold-hanzi/` in .github/workflows/pages-main.yml.
   base: '/',
-  plugins: [react()],
+  plugins: [snappyDataPlugin(), react()],
   server: {
     allowedHosts: true,
   },

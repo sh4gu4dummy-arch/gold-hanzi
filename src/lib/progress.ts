@@ -11,24 +11,46 @@ export type CharProgress = {
 
 export type ProgressStore = Record<string, CharProgress>
 
+/** In-memory store — avoid re-parsing localStorage on every Home pill render. */
+let memStore: ProgressStore | null = null
+/** glyph → beaten.length; rebuilt lazily, invalidated on wipe / mark beaten. */
+let beatenLenCache: Map<string, number> | null = null
+
 function readStore(): ProgressStore {
+  if (memStore) return memStore
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return {}
+    if (!raw) {
+      memStore = {}
+      return memStore
+    }
     const parsed = JSON.parse(raw) as ProgressStore
-    if (!parsed || typeof parsed !== 'object') return {}
-    return parsed
+    if (!parsed || typeof parsed !== 'object') {
+      memStore = {}
+      return memStore
+    }
+    memStore = parsed
+    return memStore
   } catch {
-    return {}
+    memStore = {}
+    return memStore
   }
 }
 
 function writeStore(store: ProgressStore): void {
+  memStore = store
+  beatenLenCache = null
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(store))
   } catch {
     // Quota / private mode — ignore.
   }
+}
+
+/** Drop caches so the next read re-parses / rebuilds (tests / rare external writes). */
+export function invalidateProgressCache(): void {
+  memStore = null
+  beatenLenCache = null
 }
 
 function normalizeEntry(entry: CharProgress | undefined): CharProgress {
@@ -47,6 +69,17 @@ function normalizeEntry(entry: CharProgress | undefined): CharProgress {
     }
   }
   return { beaten, inkByLevel }
+}
+
+function ensureBeatenLenCache(): Map<string, number> {
+  if (beatenLenCache) return beatenLenCache
+  const store = readStore()
+  const map = new Map<string, number>()
+  for (const [ch, entry] of Object.entries(store)) {
+    map.set(ch, normalizeEntry(entry).beaten.length)
+  }
+  beatenLenCache = map
+  return map
 }
 
 export function getCharProgress(character: string): CharProgress {
@@ -72,8 +105,9 @@ export function highestUnlocked(character: string, levelCount: number): number {
   return max
 }
 
+/** Cached beaten-level count — safe to call thousands of times per Home render. */
 export function beatenCount(character: string): number {
-  return getCharProgress(character).beaten.length
+  return ensureBeatenLenCache().get(character) ?? 0
 }
 
 export function getLevelInk(character: string, level: number): string | null {
@@ -135,7 +169,6 @@ export function markLevelBeaten(
 }
 
 export { STORAGE_KEY }
-
 
 /** Remove one character's progress + ink. Does not touch theme or other keys. */
 export function clearCharProgress(character: string): void {

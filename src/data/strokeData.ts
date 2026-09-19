@@ -1,11 +1,11 @@
 import type { CharacterEntry } from './characters'
-import { CHARACTERS } from './characters'
 import {
   contentCenterFromMedians,
   contentCenterOffset,
   offsetCharacterGeometry,
 } from '../lib/grading'
 import { CHAR_BANDS } from './charBands'
+import { CHAR_CLASSIC_LESSON, CHAR_V3_LESSON } from './charLessons'
 
 /** Shape expected by hanzi-writer (from hanzi-writer-data / Make Me a Hanzi). */
 export type StrokeCharacterData = {
@@ -15,16 +15,14 @@ export type StrokeCharacterData = {
 }
 
 /**
- * Mutable cache of stroke geometry. Populated when a classic HSK band module
- * loads or when individual lesson/character JSON chunks arrive.
- * HSK 3.0-only chars have no band module — they load per-lesson / per-char
- * after the user switches to the HSK 3.0 view (never from classic Home).
- * Prefer ensureBandLoaded / ensureCharactersLoaded / ensureCharacterStrokes
- * over reading this cold.
+ * Mutable cache of stroke geometry. Populated from lesson chunks (preferred)
+ * or classic HSK band modules. HSK 3.0 lesson chunks load only when the
+ * v3 view / a v3-only character needs them — never while classic is active.
  */
 export const STROKE_DATA: Record<string, StrokeCharacterData> = {}
 
 const bandPromises = new Map<number, Promise<void>>()
+const lessonPromises = new Map<string, Promise<void>>()
 const charPromises = new Map<string, Promise<void>>()
 
 const BAND_LOADERS: Record<
@@ -39,17 +37,77 @@ const BAND_LOADERS: Record<
   6: () => import('./strokeBands/hsk6'),
 }
 
-/** Per-file stroke JSON — Vite code-splits so lessons can load only their chars. */
-const strokeModules = import.meta.glob<{ default: StrokeCharacterData }>(
-  './strokes/*.json',
-)
+/** Classic lesson chunks — safe on the classic Home path. */
+const classicLessonModules = import.meta.glob<{
+  default: Record<string, StrokeCharacterData>
+}>('./strokeLessons/classic/*.json')
 
-const CHAR_TO_ID: Record<string, string> = Object.fromEntries(
-  CHARACTERS.map((e) => [e.character, e.id]),
-)
+/**
+ * HSK 3.0 lesson chunks — glob registers URLs only; nothing is fetched until
+ * ensureV3LessonLoaded / load path explicitly imports a module.
+ */
+const v3LessonModules = import.meta.glob<{
+  default: Record<string, StrokeCharacterData>
+}>('./strokeLessons/v3/*.json')
 
-/** Classic HSK 1 lesson size (must match homeCatalog.LESSON_SIZE). */
-const HSK1_LESSON1_SIZE = 12
+function lessonKey(view: 'classic' | 'v3', lessonId: string): string {
+  return `${view}:${lessonId}`
+}
+
+function assignLessonData(data: Record<string, StrokeCharacterData>): void {
+  Object.assign(STROKE_DATA, data)
+}
+
+/** Load (once) one classic lesson chunk (~12 chars) into STROKE_DATA. */
+export function ensureClassicLessonLoaded(lessonId: string): Promise<void> {
+  const key = lessonKey('classic', lessonId)
+  let p = lessonPromises.get(key)
+  if (!p) {
+    const modPath = `./strokeLessons/classic/${lessonId}.json`
+    const loader = classicLessonModules[modPath]
+    if (!loader) {
+      p = Promise.resolve()
+    } else {
+      p = loader()
+        .then((mod) => {
+          assignLessonData(mod.default)
+        })
+        .catch((err) => {
+          lessonPromises.delete(key)
+          throw err
+        })
+    }
+    lessonPromises.set(key, p)
+  }
+  return p
+}
+
+/**
+ * Load one HSK 3.0 lesson chunk. Call only from the v3 view / v3-only
+ * character paths — never while hskView==='classic'.
+ */
+export function ensureV3LessonLoaded(lessonId: string): Promise<void> {
+  const key = lessonKey('v3', lessonId)
+  let p = lessonPromises.get(key)
+  if (!p) {
+    const modPath = `./strokeLessons/v3/${lessonId}.json`
+    const loader = v3LessonModules[modPath]
+    if (!loader) {
+      p = Promise.resolve()
+    } else {
+      p = loader()
+        .then((mod) => {
+          assignLessonData(mod.default)
+        })
+        .catch((err) => {
+          lessonPromises.delete(key)
+          throw err
+        })
+    }
+    lessonPromises.set(key, p)
+  }
+  return p
+}
 
 /** Load (once) all stroke JSON for a classic HSK band into STROKE_DATA. */
 export function ensureBandLoaded(band: number): Promise<void> {
@@ -69,29 +127,39 @@ export function ensureBandLoaded(band: number): Promise<void> {
   return p
 }
 
+/**
+ * Prefer classic lesson chunk, then classic band module, then (only if needed)
+ * a v3 lesson chunk for v3-only glyphs.
+ */
 function loadOneCharacter(character: string): Promise<void> {
   if (STROKE_DATA[character]) return Promise.resolve()
   let p = charPromises.get(character)
   if (!p) {
-    const id = CHAR_TO_ID[character]
-    const key = id ? `./strokes/${id}.json` : undefined
-    const loader = key ? strokeModules[key] : undefined
-    if (loader) {
-      p = loader()
-        .then((mod) => {
-          STROKE_DATA[character] = mod.default
-        })
-        .catch((err) => {
-          charPromises.delete(character)
-          throw err
-        })
+    const classicLesson = CHAR_CLASSIC_LESSON[character]
+    if (classicLesson) {
+      p = ensureClassicLessonLoaded(classicLesson)
     } else {
       const band = CHAR_BANDS[character]
-      p = band != null ? ensureBandLoaded(band) : Promise.resolve()
+      if (band != null) {
+        p = ensureBandLoaded(band)
+      } else {
+        const v3Lesson = CHAR_V3_LESSON[character]
+        if (v3Lesson) {
+          p = ensureV3LessonLoaded(v3Lesson)
+        } else {
+          p = Promise.resolve()
+        }
+      }
     }
-    charPromises.set(character, p)
+    charPromises.set(
+      character,
+      p.catch((err) => {
+        charPromises.delete(character)
+        throw err
+      }),
+    )
   }
-  return p
+  return charPromises.get(character)!
 }
 
 /** Load stroke geometry for specific characters (lesson-sized / prefetch). */
@@ -103,34 +171,48 @@ export function ensureCharactersLoaded(
   )
 }
 
-/** Load every character in a home lesson. */
+/**
+ * Load every character in a home lesson as **one** (or few) chunk request(s).
+ * Uses classic lesson modules when `preferV3` is false; v3 modules otherwise.
+ */
 export function ensureLessonLoaded(
   entries: readonly CharacterEntry[],
+  opts?: { preferV3?: boolean },
 ): Promise<void> {
+  if (entries.length === 0) return Promise.resolve()
+  const preferV3 = opts?.preferV3 === true
+  // All entries in a home lesson share one lesson id in that view.
+  const sample = entries[0]!.character
+  if (preferV3) {
+    const id = CHAR_V3_LESSON[sample]
+    if (id) return ensureV3LessonLoaded(id)
+  } else {
+    const id = CHAR_CLASSIC_LESSON[sample]
+    if (id) return ensureClassicLessonLoaded(id)
+  }
+  // Fallback: per-character resolution (still batches via shared promises).
   return ensureCharactersLoaded(entries.map((e) => e.character))
 }
 
 /**
  * Classic HSK 1 Lesson 1 — first 12 classic-band-1 catalog chars.
- * Eager on app start / home load (not lazy).
+ * Eager on app start / home load (not lazy). One lesson chunk.
  */
 export function ensureHsk1Lesson1Loaded(): Promise<void> {
-  const chars = CHARACTERS.filter((e) => e.hskClassic === 1)
-    .slice(0, HSK1_LESSON1_SIZE)
-    .map((e) => e.character)
-  return ensureCharactersLoaded(chars)
+  return ensureClassicLessonLoaded('hsk1-l1')
 }
 
 /** Prefetch the next lesson in the same band after `lessonId`. */
 export function prefetchNextLesson(
   bandLessons: readonly { id: string; entries: CharacterEntry[] }[],
   lessonId: string,
+  opts?: { preferV3?: boolean },
 ): void {
   const idx = bandLessons.findIndex((l) => l.id === lessonId)
   if (idx < 0) return
   const next = bandLessons[idx + 1]
   if (!next) return
-  void ensureLessonLoaded(next.entries)
+  void ensureLessonLoaded(next.entries, opts)
 }
 
 /** Classic HSK band for a character, if known. */
@@ -138,7 +220,7 @@ export function bandForCharacter(character: string): number | undefined {
   return CHAR_BANDS[character]
 }
 
-/** Ensure stroke data for this character is loaded (per-char chunk). */
+/** Ensure stroke data for this character is loaded (lesson / band chunk). */
 export function ensureCharacterStrokes(character: string): Promise<void> {
   return loadOneCharacter(character)
 }
@@ -190,3 +272,14 @@ export function charDataLoader(
       onError(err instanceof Error ? err : new Error(String(err)))
     })
 }
+
+/** Debug / audit: classic lesson module paths registered (not fetched). */
+export function classicLessonModuleCount(): number {
+  return Object.keys(classicLessonModules).length
+}
+
+/** Debug / audit: v3 lesson module paths registered (not fetched). */
+export function v3LessonModuleCount(): number {
+  return Object.keys(v3LessonModules).length
+}
+

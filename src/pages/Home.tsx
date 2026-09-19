@@ -2,7 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import { Link } from 'react-router-dom'
 import ThemeToggle from '../components/ThemeToggle'
-import { CHARACTERS } from '../data/characters'
+import {
+  ensureCatalogForView,
+  getCatalog,
+  isV3CatalogReady,
+} from '../data/characters'
 import type { CharacterEntry } from '../data/characters'
 import {
   ensureHsk1Lesson1Loaded,
@@ -26,6 +30,7 @@ import {
 import type { DifficultyMode, HskView } from '../lib/homePref'
 import { beatenCount, clearAllProgress } from '../lib/progress'
 import { APP_VERSION } from '../version'
+import type { HomeBand, HomeLesson } from '../lib/homeCatalog'
 
 const STRICT_INFO =
   'Strict locks each next character until you clear the previous one.'
@@ -43,27 +48,66 @@ export default function Home() {
   const [openLessons, setOpenLessons] = useState<Set<string>>(() => new Set())
   const [modeInfo, setModeInfo] = useState<null | 'strict' | 'dev'>(null)
   const modeInfoRef = useRef<HTMLDivElement | null>(null)
+  /** Classic path is ready immediately; v3 waits for lazy extras. */
+  const [catalogReady, setCatalogReady] = useState(
+    () => getHskView() === 'classic' || isV3CatalogReady(),
+  )
+  const [catalogTick, setCatalogTick] = useState(0)
+
+  // Lazy HSK 3.0 catalog — never pulled while classic is active.
+  useEffect(() => {
+    let cancelled = false
+    if (hskView === 'classic') {
+      setCatalogReady(true)
+      return
+    }
+    setCatalogReady(isV3CatalogReady())
+    void ensureCatalogForView('v3').then(() => {
+      if (cancelled) return
+      setCatalogReady(true)
+      setCatalogTick((n) => n + 1)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [hskView])
+
+  const all = getCatalog()
 
   const bands = useMemo(
-    () => buildBands(CHARACTERS, hskView),
-    [hskView, revision],
+    () => (catalogReady ? buildBands(all, hskView) : []),
+    // catalogTick bumps when v3 extras merge; revision on wipe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [hskView, revision, catalogReady, catalogTick],
   )
   const ordered = useMemo(
-    () => entriesForView(CHARACTERS, hskView),
-    [hskView, revision],
+    () => (catalogReady ? entriesForView(all, hskView) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [hskView, revision, catalogReady, catalogTick],
   )
   /** Classic HSK 1–6 band batteries — always classic, independent of syllabus toggle. */
   const classicBands = useMemo(
-    () => buildBands(CHARACTERS, 'classic'),
-    [revision],
+    () => buildBands(getCatalog(), 'classic'),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [revision, catalogTick],
   )
+
+  /** Cached battery / band progress — depends on revision (wipe / return). */
+  const classicBatteryProg = useMemo(() => {
+    return classicBands.map((band) => ({
+      level: band.level,
+      label: band.label,
+      ...bandProgress(band.entries),
+    }))
+  }, [classicBands, revision])
 
   const resolvedBand =
     openBand === -1 ? null : (openBand ?? bands[0]?.level ?? null)
 
   // When the HSK view / band set changes, open the first lesson of the default band once.
   useEffect(() => {
-    const nextBands = buildBands(CHARACTERS, hskView)
+    if (!catalogReady) return
+    const nextBands = buildBands(getCatalog(), hskView)
     const first = nextBands[0]?.lessons[0]?.id
     if (!first) {
       setOpenLessons(new Set())
@@ -71,28 +115,28 @@ export default function Home() {
     }
     setOpenLessons(new Set([first]))
     setOpenBand(null)
-  }, [hskView, revision])
+  }, [hskView, revision, catalogReady, catalogTick])
 
   // Classic HSK 1 Lesson 1 is eager — always warm on home mount / start.
-  // Does not pull HSK 3.0-only stroke chunks.
+  // One classic lesson chunk; does not pull HSK 3.0 modules.
   useEffect(() => {
     void ensureHsk1Lesson1Loaded()
   }, [])
 
   // Super-lazy strokes: only load geometry for open lessons in the *active*
-  // HSK view. Classic path never opens v3 lessons, so 3.0 assets stay off
-  // until the user toggles to HSK 3.0 (then per-lesson + prefetch next).
-  // Battery pills use eager STROKE_COUNTS only — no geometry download.
+  // HSK view. Classic path uses classic lesson chunks only; v3 chunks load
+  // only when hskView==='v3'. Battery pills use eager STROKE_COUNTS only.
   useEffect(() => {
-    if (openLessons.size === 0) return
+    if (!catalogReady || openLessons.size === 0) return
+    const preferV3 = hskView === 'v3'
     for (const band of bands) {
       for (const lesson of band.lessons) {
         if (!openLessons.has(lesson.id)) continue
-        void ensureLessonLoaded(lesson.entries)
-        prefetchNextLesson(band.lessons, lesson.id)
+        void ensureLessonLoaded(lesson.entries, { preferV3 })
+        prefetchNextLesson(band.lessons, lesson.id, { preferV3 })
       }
     }
-  }, [openLessons, bands, hskView])
+  }, [openLessons, bands, hskView, catalogReady])
 
   // Dismiss Strict/Dev info popover on outside tap / Escape.
   useEffect(() => {
@@ -256,22 +300,21 @@ export default function Home() {
           role="list"
           aria-label="Classic HSK 1–6 band progress"
         >
-          {classicBands.map((band) => {
-            const prog = bandProgress(band.entries)
+          {classicBatteryProg.map((prog) => {
             const pct =
               prog.total > 0
                 ? Math.round((prog.cleared / prog.total) * 100)
                 : 0
             return (
               <div
-                key={band.level}
+                key={prog.level}
                 className="home-band-battery"
                 role="listitem"
-                title={`${band.label}: ${prog.cleared}/${prog.total} characters cleared (${pct}%)`}
-                aria-label={`${band.label}: ${prog.cleared} of ${prog.total} characters cleared, ${pct} percent`}
+                title={`${prog.label}: ${prog.cleared}/${prog.total} characters cleared (${pct}%)`}
+                aria-label={`${prog.label}: ${prog.cleared} of ${prog.total} characters cleared, ${pct} percent`}
               >
                 <span className="home-band-battery-label" aria-hidden="true">
-                  {band.level}
+                  {prog.level}
                 </span>
                 <span className="home-band-battery-track" aria-hidden="true">
                   <span
@@ -285,81 +328,28 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="home-bands" key={`${hskView}-${revision}`}>
-        {bands.length === 0 && (
+      <div className="home-bands" key={`${hskView}-${revision}-${catalogTick}`}>
+        {!catalogReady && (
+          <p className="home-empty">Loading HSK 3.0 catalog…</p>
+        )}
+        {catalogReady && bands.length === 0 && (
           <p className="home-empty">No characters in this HSK view yet.</p>
         )}
         {bands.map((band) => {
           const expanded = resolvedBand === band.level
-          const prog = bandProgress(band.entries)
-          const lessonProg = lessonBandProgress(band.lessons)
           return (
-            <section
+            <BandSection
               key={band.level}
-              className={`hsk-band${expanded ? ' is-open' : ''}`}
-            >
-              <button
-                type="button"
-                className="hsk-band-head"
-                aria-expanded={expanded}
-                onClick={() => toggleBand(band.level)}
-              >
-                <span className="hsk-band-title">{band.label}</span>
-                <span className="hsk-band-meta">
-                  {prog.cleared}/{prog.total} chars · {lessonProg.cleared}/
-                  {lessonProg.total} lessons
-                </span>
-                <span className="hsk-band-chev" aria-hidden="true">
-                  {expanded ? '▾' : '▸'}
-                </span>
-              </button>
-              {expanded && (
-                <div className="hsk-band-body">
-                  {band.lessons.map((lesson) => {
-                    const lessonOpen = openLessons.has(lesson.id)
-                    const lessonProgInner = bandProgress(lesson.entries)
-                    return (
-                      <div
-                        key={lesson.id}
-                        className={`hsk-lesson${lessonOpen ? ' is-open' : ''}`}
-                      >
-                        <button
-                          type="button"
-                          className="hsk-lesson-head"
-                          aria-expanded={lessonOpen}
-                          onClick={() => toggleLesson(lesson.id)}
-                        >
-                          <span>{lesson.label}</span>
-                          <span className="hsk-lesson-meta">
-                            {lessonProgInner.cleared}/{lesson.entries.length} ·{' '}
-                            {lesson.entries.length} chars
-                          </span>
-                          <span aria-hidden="true">
-                            {lessonOpen ? '▾' : '▸'}
-                          </span>
-                        </button>
-                        {lessonOpen && (
-                          <ol className="char-grid char-grid-compact">
-                            {lesson.entries.map((entry) => (
-                              <CharTile
-                                key={entry.id}
-                                entry={entry}
-                                hskView={hskView}
-                                unlocked={isCharacterUnlocked(
-                                  entry,
-                                  ordered,
-                                  difficulty,
-                                )}
-                              />
-                            ))}
-                          </ol>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </section>
+              band={band}
+              expanded={expanded}
+              openLessons={openLessons}
+              ordered={ordered}
+              difficulty={difficulty}
+              hskView={hskView}
+              revision={revision}
+              onToggleBand={toggleBand}
+              onToggleLesson={toggleLesson}
+            />
           )
         })}
       </div>
@@ -374,6 +364,160 @@ export default function Home() {
         </button>
       </div>
     </main>
+  )
+}
+
+/**
+ * Band header always mounts; lesson list mounts only when expanded; char
+ * tiles mount only when a lesson is open — keeps expand cheap.
+ */
+function BandSection({
+  band,
+  expanded,
+  openLessons,
+  ordered,
+  difficulty,
+  hskView,
+  revision,
+  onToggleBand,
+  onToggleLesson,
+}: {
+  band: HomeBand
+  expanded: boolean
+  openLessons: Set<string>
+  ordered: CharacterEntry[]
+  difficulty: DifficultyMode
+  hskView: HskView
+  revision: number
+  onToggleBand: (level: number) => void
+  onToggleLesson: (lessonId: string) => void
+}) {
+  const prog = useMemo(
+    () => bandProgress(band.entries),
+    [band.entries, revision],
+  )
+  const lessonProg = useMemo(
+    () => lessonBandProgress(band.lessons),
+    [band.lessons, revision],
+  )
+
+  return (
+    <section className={`hsk-band${expanded ? ' is-open' : ''}`}>
+      <button
+        type="button"
+        className="hsk-band-head"
+        aria-expanded={expanded}
+        onClick={() => onToggleBand(band.level)}
+      >
+        <span className="hsk-band-title">{band.label}</span>
+        <span className="hsk-band-meta">
+          {prog.cleared}/{prog.total} chars · {lessonProg.cleared}/
+          {lessonProg.total} lessons
+        </span>
+        <span className="hsk-band-chev" aria-hidden="true">
+          {expanded ? '▾' : '▸'}
+        </span>
+      </button>
+      {expanded && (
+        <BandLessonList
+          lessons={band.lessons}
+          openLessons={openLessons}
+          ordered={ordered}
+          difficulty={difficulty}
+          hskView={hskView}
+          revision={revision}
+          onToggleLesson={onToggleLesson}
+        />
+      )}
+    </section>
+  )
+}
+
+function BandLessonList({
+  lessons,
+  openLessons,
+  ordered,
+  difficulty,
+  hskView,
+  revision,
+  onToggleLesson,
+}: {
+  lessons: HomeLesson[]
+  openLessons: Set<string>
+  ordered: CharacterEntry[]
+  difficulty: DifficultyMode
+  hskView: HskView
+  revision: number
+  onToggleLesson: (lessonId: string) => void
+}) {
+  return (
+    <div className="hsk-band-body">
+      {lessons.map((lesson) => (
+        <LessonSection
+          key={lesson.id}
+          lesson={lesson}
+          open={openLessons.has(lesson.id)}
+          ordered={ordered}
+          difficulty={difficulty}
+          hskView={hskView}
+          revision={revision}
+          onToggle={() => onToggleLesson(lesson.id)}
+        />
+      ))}
+    </div>
+  )
+}
+
+function LessonSection({
+  lesson,
+  open,
+  ordered,
+  difficulty,
+  hskView,
+  revision,
+  onToggle,
+}: {
+  lesson: HomeLesson
+  open: boolean
+  ordered: CharacterEntry[]
+  difficulty: DifficultyMode
+  hskView: HskView
+  revision: number
+  onToggle: () => void
+}) {
+  const lessonProgInner = useMemo(
+    () => bandProgress(lesson.entries),
+    [lesson.entries, revision],
+  )
+
+  return (
+    <div className={`hsk-lesson${open ? ' is-open' : ''}`}>
+      <button
+        type="button"
+        className="hsk-lesson-head"
+        aria-expanded={open}
+        onClick={onToggle}
+      >
+        <span>{lesson.label}</span>
+        <span className="hsk-lesson-meta">
+          {lessonProgInner.cleared}/{lesson.entries.length} ·{' '}
+          {lesson.entries.length} chars
+        </span>
+        <span aria-hidden="true">{open ? '▾' : '▸'}</span>
+      </button>
+      {open && (
+        <ol className="char-grid char-grid-compact">
+          {lesson.entries.map((entry) => (
+            <CharTile
+              key={entry.id}
+              entry={entry}
+              hskView={hskView}
+              unlocked={isCharacterUnlocked(entry, ordered, difficulty)}
+            />
+          ))}
+        </ol>
+      )}
+    </div>
   )
 }
 
