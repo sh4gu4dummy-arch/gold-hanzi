@@ -15,8 +15,10 @@ export type StrokeCharacterData = {
 }
 
 /**
- * Mutable cache of stroke geometry. Populated when an HSK band module loads
- * or when individual lesson/character JSON chunks arrive.
+ * Mutable cache of stroke geometry. Populated when a classic HSK band module
+ * loads or when individual lesson/character JSON chunks arrive.
+ * HSK 3.0-only chars have no band module — they load per-lesson / per-char
+ * after the user switches to the HSK 3.0 view (never from classic Home).
  * Prefer ensureBandLoaded / ensureCharactersLoaded / ensureCharacterStrokes
  * over reading this cold.
  */

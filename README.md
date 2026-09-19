@@ -1,6 +1,6 @@
 # 汉字描红 · Chinese Trace
 
-A handwriting practice app for classic HSK 1–6 Simplified Chinese characters (home grouped by HSK bands and lessons). Tap a character, watch a slow stroke-order guide, then freehand-trace until the stroke-centric grader passes.
+A handwriting practice app for Simplified Chinese characters — classic HSK 1–6 and HSK 3.0 bands 1–9 (home grouped by HSK bands and lessons; 3.0 stroke data lazy-loads on toggle). Tap a character, watch a slow stroke-order guide, then freehand-trace until the stroke-centric grader passes.
 
 **App Builder / Grok Bot handoff:** [GROK_APP_BUILDER.md](./GROK_APP_BUILDER.md) — notes from Grok App Builder for the other devs. Newest entry first.
 

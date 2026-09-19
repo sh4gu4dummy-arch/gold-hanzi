@@ -73,13 +73,16 @@ export default function Home() {
     setOpenBand(null)
   }, [hskView, revision])
 
-  // HSK 1 Lesson 1 is eager — always warm on home mount / start.
+  // Classic HSK 1 Lesson 1 is eager — always warm on home mount / start.
+  // Does not pull HSK 3.0-only stroke chunks.
   useEffect(() => {
     void ensureHsk1Lesson1Loaded()
   }, [])
 
-  // Lesson lazy-load: when a lesson opens, load its chars; prefetch the next
-  // lesson in the same band. Band modules still exist for bulk/cold paths.
+  // Super-lazy strokes: only load geometry for open lessons in the *active*
+  // HSK view. Classic path never opens v3 lessons, so 3.0 assets stay off
+  // until the user toggles to HSK 3.0 (then per-lesson + prefetch next).
+  // Battery pills use eager STROKE_COUNTS only — no geometry download.
   useEffect(() => {
     if (openLessons.size === 0) return
     for (const band of bands) {
@@ -89,7 +92,7 @@ export default function Home() {
         prefetchNextLesson(band.lessons, lesson.id)
       }
     }
-  }, [openLessons, bands])
+  }, [openLessons, bands, hskView])
 
   // Dismiss Strict/Dev info popover on outside tap / Escape.
   useEffect(() => {

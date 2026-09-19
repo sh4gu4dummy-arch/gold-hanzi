@@ -79,3 +79,25 @@ export function setPhrasePanelOpen(open: boolean): void {
     /* ignore */
   }
 }
+
+export const PHRASES_ENABLED_KEY = 'chinese-trace:phrases-enabled:v1'
+
+/** Context phrases on Practice; default on. */
+export function getPhrasesEnabled(): boolean {
+  try {
+    const raw = localStorage.getItem(PHRASES_ENABLED_KEY)
+    if (raw === '0' || raw === 'off') return false
+    if (raw === '1' || raw === 'on') return true
+  } catch {
+    /* ignore */
+  }
+  return true
+}
+
+export function setPhrasesEnabled(enabled: boolean): void {
+  try {
+    localStorage.setItem(PHRASES_ENABLED_KEY, enabled ? '1' : '0')
+  } catch {
+    /* ignore */
+  }
+}

@@ -1736,16 +1736,6 @@ h1 {
   border-top: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
 }
 
-.practice-phrase-hanzi {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px;
-  justify-content: center;
-  margin: 8px 0 4px;
-  font-size: 28px;
-  line-height: 1.2;
-  letter-spacing: 0.04em;
-}
 
 .practice-phrase-char {
   color: var(--text);
@@ -1763,6 +1753,83 @@ h1 {
   text-align: center;
   font-size: 13px;
   color: var(--muted);
+}
+
+
+.practice-phrase-head {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+}
+
+.practice-phrase-head .practice-phrase-toggle {
+  flex: 1;
+}
+
+.practice-phrase-hide {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.practice-phrase-hide:hover,
+.practice-phrase-hide:focus-visible {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  outline: none;
+}
+
+.practice-phrase-hanzi {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  justify-content: center;
+  margin: 8px 0 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 28px;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  color: inherit;
+}
+
+.practice-phrase-hanzi:hover,
+.practice-phrase-hanzi:focus-visible {
+  outline: none;
+  filter: brightness(1.05);
+}
+
+.practice-phrase-show {
+  display: block;
+  width: 100%;
+  margin: 6px 0 0;
+  padding: 6px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+
+.practice-phrase-show:hover,
+.practice-phrase-show:focus-visible {
+  color: var(--text);
+  border-color: var(--accent);
+  outline: none;
 }
 
 .practice-sound-tip {

@@ -14,10 +14,13 @@ import {
   getDifficultyMode,
   getHskView,
   getPhrasePanelOpen,
+  getPhrasesEnabled,
   getSoundTipSeen,
   setPhrasePanelOpen,
+  setPhrasesEnabled,
   setSoundTipSeen,
 } from '../lib/homePref'
+import { getSoundEnabled } from '../lib/soundPref'
 import { clearCharProgress, getCharProgress } from '../lib/progress'
 import type { CharProgress } from '../lib/progress'
 import { speakHanzi } from '../lib/speak'
@@ -38,6 +41,9 @@ export default function Practice() {
   const [levelPipsHost, setLevelPipsHost] = useState<HTMLElement | null>(null)
   const [showSoundTip, setShowSoundTip] = useState(() => !getSoundTipSeen())
   const [phraseOpen, setPhraseOpen] = useState(() => getPhrasePanelOpen())
+  const [phrasesEnabled, setPhrasesEnabledState] = useState(() =>
+    getPhrasesEnabled(),
+  )
 
   const progress: CharProgress = entry
     ? (progressByChar[entry.character] ?? getCharProgress(entry.character))
@@ -163,31 +169,50 @@ export default function Practice() {
           </button>
         </div>
 
-        {entry.phrase && entry.phraseGloss && (
+        {phrasesEnabled && entry.phrase && entry.phraseGloss && (
           <div className="practice-phrase-panel">
-            <button
-              type="button"
-              className="practice-phrase-toggle"
-              aria-expanded={phraseOpen}
-              onClick={() => {
-                setPhraseOpen((open) => {
-                  const next = !open
-                  setPhrasePanelOpen(next)
-                  return next
-                })
-              }}
-            >
-              <span>Context phrase</span>
-              <span className="practice-phrase-chev" aria-hidden="true">
-                {phraseOpen ? '▾' : '▸'}
-              </span>
-            </button>
+            <div className="practice-phrase-head">
+              <button
+                type="button"
+                className="practice-phrase-toggle"
+                aria-expanded={phraseOpen}
+                onClick={() => {
+                  setPhraseOpen((open) => {
+                    const next = !open
+                    setPhrasePanelOpen(next)
+                    return next
+                  })
+                }}
+              >
+                <span>Context phrase</span>
+                <span className="practice-phrase-chev" aria-hidden="true">
+                  {phraseOpen ? '▾' : '▸'}
+                </span>
+              </button>
+              <button
+                type="button"
+                className="practice-phrase-hide"
+                title="Hide phrases"
+                aria-label="Hide context phrases"
+                onClick={() => {
+                  setPhrasesEnabled(false)
+                  setPhrasesEnabledState(false)
+                }}
+              >
+                Hide
+              </button>
+            </div>
             {phraseOpen && (
               <div className="practice-phrase-body">
-                <div
+                <button
+                  type="button"
                   className="practice-phrase-hanzi"
                   lang="zh-Hans"
-                  aria-label={`Phrase ${entry.phrase}`}
+                  aria-label={`Speak phrase ${entry.phrase}`}
+                  title="Speak phrase"
+                  onClick={() => {
+                    if (getSoundEnabled()) void speakHanzi(entry.phrase!)
+                  }}
                 >
                   {Array.from(entry.phrase).map((ch, i) => (
                     <span
@@ -199,11 +224,23 @@ export default function Practice() {
                       {ch}
                     </span>
                   ))}
-                </div>
+                </button>
                 <p className="practice-phrase-gloss">{entry.phraseGloss}</p>
               </div>
             )}
           </div>
+        )}
+        {!phrasesEnabled && entry.phrase && entry.phraseGloss && (
+          <button
+            type="button"
+            className="practice-phrase-show"
+            onClick={() => {
+              setPhrasesEnabled(true)
+              setPhrasesEnabledState(true)
+            }}
+          >
+            Show context phrases
+          </button>
         )}
 
         {showSoundTip && (

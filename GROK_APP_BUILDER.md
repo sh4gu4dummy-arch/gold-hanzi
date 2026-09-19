@@ -49,6 +49,16 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-19 — HSK 3.0 through band 9 lazy + phrases toggle (v0.028)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `characters.ts`, `strokeCounts.ts`, `charBands.ts`, `strokes/*` (+399), `strokeData.ts`, `Home.tsx`, `Practice.tsx`, `homePref.ts`, `index.css`, `version.ts`
+
+- **HSK 3.0 catalog:** recognition through **bands 1–9** (~3000 unique Simplified from official list). Bands 7–9 = advanced 1200 split by frequency into 400 each. +399 new v3-only chars with vendored stroke JSON.
+- **Super lazy:** classic Home never downloads 3.0-only stroke chunks; geometry loads **per open lesson** (+ prefetch next) only in the active view. Battery pills use eager `STROKE_COUNTS` only. No v3 band modules.
+- **Phrases:** `phrase` + `phraseGloss` on essentially all catalog chars (HSK words / CEDICT compounds). Practice **Phrases on/off** (`localStorage` `chinese-trace:phrases-enabled:v1`, default on); Hide / Show; collapsible panel; tap phrase → TTS via `speakHanzi` when sound on.
+
+
 ### 2026-09-19 — Band battery meters and HSK1 context phrases (v0.027)
 
 **Who:** gold-hanzi (repo Grok)  
