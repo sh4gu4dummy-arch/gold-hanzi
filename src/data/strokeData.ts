@@ -24,6 +24,7 @@ const BAND_LOADERS: Record<number, () => Promise<{ default: Record<string, Strok
   1: () => import('./strokeBands/hsk1'),
   2: () => import('./strokeBands/hsk2'),
   3: () => import('./strokeBands/hsk3'),
+  4: () => import('./strokeBands/hsk4'),
 }
 
 /** Load (once) all stroke JSON for a classic HSK band into STROKE_DATA. */

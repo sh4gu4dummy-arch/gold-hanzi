@@ -893,10 +893,11 @@ export default function TracePad({
       clearTimeout(tryAgainTimerRef.current)
     }
     setTryAgainToast(true)
+    // Match CSS fade (~1.1s): shorter, sits above ink so it doesn't cover the stroke.
     tryAgainTimerRef.current = setTimeout(() => {
       setTryAgainToast(false)
       tryAgainTimerRef.current = null
-    }, 1400)
+    }, 1100)
   }, [])
 
   /** Baseline for the active stroke — restore on 150% try-again. */
@@ -2122,6 +2123,11 @@ export default function TracePad({
                 <span>Level {level} cleared</span>
               </div>
             )}
+            {tryAgainToast && (
+              <div className="trace-try-again-toast" role="status" aria-live="polite">
+                try again
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -2198,12 +2204,6 @@ export default function TracePad({
           {voiceNote}
         </p>
       )}
-      {tryAgainToast && (
-        <div className="trace-try-again-toast" role="status" aria-live="polite">
-          try again
-        </div>
-      )}
-
       {phase === 'passed' && level < levelCount && (
         <div className="trace-actions">
           <button

@@ -10,7 +10,12 @@ import {
   nextUnlockedEntry,
   strokeLevelCount,
 } from '../lib/homeCatalog'
-import { getDifficultyMode, getHskView } from '../lib/homePref'
+import {
+  getDifficultyMode,
+  getHskView,
+  getSoundTipSeen,
+  setSoundTipSeen,
+} from '../lib/homePref'
 import { clearCharProgress, getCharProgress } from '../lib/progress'
 import type { CharProgress } from '../lib/progress'
 import { speakHanzi } from '../lib/speak'
@@ -29,6 +34,7 @@ export default function Practice() {
   const [padRevision, setPadRevision] = useState(0)
   /** Host for TracePad level-pip strip (ported under big pinyin). */
   const [levelPipsHost, setLevelPipsHost] = useState<HTMLElement | null>(null)
+  const [showSoundTip, setShowSoundTip] = useState(() => !getSoundTipSeen())
 
   const progress: CharProgress = entry
     ? (progressByChar[entry.character] ?? getCharProgress(entry.character))
@@ -153,6 +159,25 @@ export default function Practice() {
             <span aria-hidden="true">🔊</span>
           </button>
         </div>
+
+        {showSoundTip && (
+          <div className="practice-sound-tip" role="status">
+            <span>
+              🔊 = hear now, 🎧 = auto.
+            </span>
+            <button
+              type="button"
+              className="practice-sound-tip-dismiss"
+              aria-label="Dismiss tip"
+              onClick={() => {
+                setSoundTipSeen()
+                setShowSoundTip(false)
+              }}
+            >
+              ×
+            </button>
+          </div>
+        )}
         <div
           className="practice-level-pips-slot"
           ref={setLevelPipsHost}

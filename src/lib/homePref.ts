@@ -41,3 +41,22 @@ export function setDifficultyMode(mode: DifficultyMode): void {
     /* ignore */
   }
 }
+
+export const SOUND_TIP_KEY = 'chinese-trace:sound-tip-seen:v1'
+
+export function getSoundTipSeen(): boolean {
+  try {
+    return localStorage.getItem(SOUND_TIP_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function setSoundTipSeen(): void {
+  try {
+    localStorage.setItem(SOUND_TIP_KEY, '1')
+  } catch {
+    /* ignore */
+  }
+}
+

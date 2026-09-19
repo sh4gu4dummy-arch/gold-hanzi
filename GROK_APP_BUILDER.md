@@ -49,6 +49,16 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-19 — Toast polish, Strict hint, first-run tip, HSK 4 (v0.024)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `TracePad.tsx`, `index.css`, `Home.tsx`, `Practice.tsx`, `homePref.ts`, `characters.ts`, `strokeBands/hsk4.ts`, `strokeCounts.ts`, `charBands.ts`, `strokeData.ts`, `strokes/*`, `version.ts`
+
+- **Try-again toast:** moved into `.trace-stage`, top-anchored with fade in/out (~1.1s) so it no longer covers mid-glyph ink.
+- **Strict vs Dev hint** on Home under the difficulty toggle.
+- **First-run sound tip** on Practice (`🔊 = hear now, 🎧 = auto.`); dismissed once via `localStorage` (`chinese-trace:sound-tip-seen:v1`).
+- Classic **HSK 4** unique characters (+447) with vendored stroke JSON + lazy `hsk4` band; `hskV3` best-effort from HSK 3.0 word bands.
+
 ### 2026-09-19 — Stroke and level checks, character done outline (v0.023)
 
 **Who:** gold-hanzi (repo Grok)  

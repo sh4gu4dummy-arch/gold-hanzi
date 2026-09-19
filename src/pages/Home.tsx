@@ -166,6 +166,10 @@ export default function Home() {
               Dev unlocked
             </button>
           </div>
+          <p className="home-difficulty-hint">
+            Strict locks each next character until you clear the previous one.
+            Dev unlocked opens the whole catalog.
+          </p>
         </div>
 
         <div className="home-wipe-all">
