@@ -49,6 +49,14 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-19 — Cleared-level review: guide XOR ink (v0.015)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `TracePad.tsx`, `version.ts`
+
+- **Bug:** revisiting beaten levels via pips/`enterReviewMode` painted green Guide **and** restored saved ink (v0.010 “guide under ink”). Post-clear correctly showed green only.
+- **Fix:** passed/review is mutually exclusive — default Show my strokes off → guide only; on → ink only (clear guide). Same XOR in toggle, ResizeObserver `passed`, and `applyInkSnapshot`.
+
 ### 2026-09-19 — Mandarin TTS detection + sound replay UX (v0.014)
 
 **Who:** gold-hanzi (repo Grok)  

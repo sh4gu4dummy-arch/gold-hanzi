@@ -821,8 +821,6 @@ export default function TracePad({
       setLiveGrade(status)
       if (!showMyStrokesRef.current) {
         paintGuide(levelRef.current, status?.strokeDone ?? null)
-      } else if (status?.strokeDone) {
-        paintGuide(levelRef.current, status.strokeDone)
       } else {
         clearGuideCanvas(guideCanvasRef.current)
       }
@@ -887,7 +885,7 @@ export default function TracePad({
     [ensureInkStore],
   )
 
-  /** Review a beaten level: show saved handwriting (show-my-strokes on). */
+  /** Review a beaten level: guide XOR ink (default = green guide, like post-clear). */
   const enterReviewMode = useCallback(
     (levelNum: number) => {
       clearAutoAdvance()
@@ -898,13 +896,14 @@ export default function TracePad({
       setPhase('passed')
       setLiveGrade(null)
       setLoadError(null)
-      setShowMyStrokes(true)
-      showMyStrokesRef.current = true
+      // Match post-clear default: green guide only (Show my strokes off).
+      setShowMyStrokes(false)
+      showMyStrokesRef.current = false
 
       hideWriterHost()
       resizeCanvases()
       clearInkCanvas()
-      // Review: green Guide for the cleared character; optional ink on top.
+      // Review: mutually exclusive — guide by default; ink stays in store for toggle.
       const done =
         lastStrokeDoneRef.current ??
         (strokeData
@@ -919,7 +918,7 @@ export default function TracePad({
 
       const dataUrl = getLevelInk(character, levelNum)
       if (dataUrl) {
-        restoreInkFromDataUrl(dataUrl, session, true)
+        restoreInkFromDataUrl(dataUrl, session, false)
       }
     },
     [
@@ -1245,23 +1244,25 @@ export default function TracePad({
           }
         })
       } else if (phase === 'passed') {
-        // resizeCanvases() clears pixels — always repaint green Guide.
+        // resizeCanvases() clears pixels — restore guide XOR ink (never both).
         const done =
           lastStrokeDoneRef.current ??
           (strokeData
             ? strokeData.strokes.map(() => true)
             : null)
-        if (done) {
+        if (showMyStrokesRef.current) {
+          clearGuideCanvas(guideCanvasRef.current)
+          const dataUrl = getLevelInk(character, levelRef.current)
+          if (dataUrl) {
+            restoreInkFromDataUrl(
+              dataUrl,
+              sessionRef.current,
+              true,
+            )
+          }
+        } else if (done) {
           paintGuide(levelRef.current, done)
-        }
-        // Keep review ink visible when "Show my strokes" is on.
-        const dataUrl = getLevelInk(character, levelRef.current)
-        if (dataUrl && showMyStrokesRef.current) {
-          restoreInkFromDataUrl(
-            dataUrl,
-            sessionRef.current,
-            true,
-          )
+          clearCanvasPixels(inkCanvasRef.current)
         }
       } else if (phase === 'demo' || phase === 'loading') {
         // Ensure guide host dimensions stay in sync as layout settles.
@@ -1512,9 +1513,18 @@ export default function TracePad({
       (mask ? evaluateGrade(mask).strokeDone : null) ??
       (strokeData ? strokeData.strokes.map(() => true) : null)
     if (next) {
-      // Keep green Guide under ink so cleared strokes stay visible.
-      if (done) paintGuide(levelRef.current, done)
-      blitStoreToVisible()
+      // Ink only — no green underlay (mutually exclusive with guide).
+      clearGuideCanvas(guideCanvasRef.current)
+      if (phase === 'passed') {
+        const dataUrl = getLevelInk(character, levelRef.current)
+        if (dataUrl) {
+          restoreInkFromDataUrl(dataUrl, sessionRef.current, true)
+        } else {
+          blitStoreToVisible()
+        }
+      } else {
+        blitStoreToVisible()
+      }
     } else {
       if (done) paintGuide(levelRef.current, done)
       clearVisibleInkOnly()
