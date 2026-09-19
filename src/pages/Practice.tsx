@@ -70,7 +70,7 @@ export default function Practice() {
     setPadRevision((n) => n + 1)
   }
 
-  const handleGlyphSpeak = () => {
+  const handleSpeak = () => {
     // Manual replay — always allowed, even when auto Sound is off.
     void speakHanzi(entry.character)
   }
@@ -79,22 +79,13 @@ export default function Practice() {
     <main className="page practice">
       <header className="practice-bar">
         <div className="practice-bar-row">
-          <Link className="back-link" to="/" title="Home" aria-label="Home">
-            ←
+          <Link className="practice-home" to="/" title="Home" aria-label="Home">
+            <span className="practice-home-icon" aria-hidden="true">
+              ⌂
+            </span>
+            <span className="practice-home-label">Home</span>
           </Link>
           <div className="practice-meta">
-            <h1>
-              <button
-                type="button"
-                className="practice-glyph-btn"
-                onClick={handleGlyphSpeak}
-                title="Speak character"
-                aria-label={`Speak ${entry.character}`}
-              >
-                <span className="practice-glyph">{entry.character}</span>
-              </button>
-              <span className="practice-pinyin">{entry.pinyin}</span>
-            </h1>
             <p className="practice-meta-sub">
               {entry.meaning}
               {levelCount > 0 && (
@@ -114,6 +105,17 @@ export default function Practice() {
             </span>
             <ThemeToggle />
           </div>
+        </div>
+        <div className="practice-pinyin-row">
+          <button
+            type="button"
+            className="practice-pinyin-btn"
+            onClick={handleSpeak}
+            title="Speak character"
+            aria-label={`Speak ${entry.character}, ${entry.pinyin}`}
+          >
+            <span className="practice-pinyin">{entry.pinyin}</span>
+          </button>
         </div>
       </header>
 

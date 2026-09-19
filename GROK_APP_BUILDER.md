@@ -49,7 +49,19 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-19 — Practice header: pinyin, Home, scroll levels (v0.017)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `Practice.tsx`, `TracePad.tsx`, `index.css`, `version.ts`
+
+- Removed spoiler hanzi glyph from practice top bar (no answer giveaway).
+- Prominent centered **pinyin** above the pad (tappable to speak); meaning stays as small meta.
+- Larger **Home** control (house + label) replaces tiny back chevron.
+- Level strip: fixed pip size, horizontal scroll + arrow affordance when many levels; keep current level centered; clamp so end levels stay visible.
+- Tighter practice chrome; Skip/Replay corner + toolbar unchanged. Sound 🔊 still manual replay.
+
 ### 2026-09-19 — Practice UI: Skip/Replay corner + denser dock (v0.016)
+
 
 **Who:** gold-hanzi (repo Grok)  
 **Paths:** `TracePad.tsx`, `index.css`, `version.ts`

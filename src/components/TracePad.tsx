@@ -603,6 +603,10 @@ export default function TracePad({
 
   const soundHoldTimerRef = useRef<number | null>(null)
   const soundDidLongPressRef = useRef(false)
+  const levelPipsRef = useRef<HTMLDivElement>(null)
+  const [pipsOverflow, setPipsOverflow] = useState(false)
+  const [canScrollPipsLeft, setCanScrollPipsLeft] = useState(false)
+  const [canScrollPipsRight, setCanScrollPipsRight] = useState(false)
 
   const clearSoundHoldTimer = useCallback(() => {
     if (soundHoldTimerRef.current != null) {
@@ -1545,6 +1549,70 @@ export default function TracePad({
   const strokesDone =
     liveGrade != null ? liveGrade.doneCount : 0
 
+  const updatePipsScrollState = useCallback(() => {
+    const strip = levelPipsRef.current
+    if (!strip) return
+    const maxScroll = Math.max(0, strip.scrollWidth - strip.clientWidth)
+    const overflow = maxScroll > 1
+    setPipsOverflow(overflow)
+    setCanScrollPipsLeft(overflow && strip.scrollLeft > 1)
+    setCanScrollPipsRight(overflow && strip.scrollLeft < maxScroll - 1)
+  }, [])
+
+  const scrollPipsBy = useCallback(
+    (dir: -1 | 1) => {
+      const strip = levelPipsRef.current
+      if (!strip) return
+      const step = Math.max(strip.clientWidth * 0.6, 80)
+      strip.scrollBy({ left: dir * step, behavior: 'smooth' })
+    },
+    [],
+  )
+
+  /** Keep the active level centered while levels remain ahead; clamp at ends. */
+  useEffect(() => {
+    const strip = levelPipsRef.current
+    if (!strip || levelCount <= 0) return
+
+    const active = strip.querySelector(
+      '.level-pip.is-active',
+    ) as HTMLElement | null
+    if (!active) {
+      updatePipsScrollState()
+      return
+    }
+
+    const maxScroll = Math.max(0, strip.scrollWidth - strip.clientWidth)
+    if (maxScroll <= 1) {
+      strip.scrollLeft = 0
+      updatePipsScrollState()
+      return
+    }
+
+    const activeCenter = active.offsetLeft + active.offsetWidth / 2
+    const viewMid = strip.clientWidth / 2
+    // Center active pip, but never push the last visible levels off-screen.
+    const target = Math.max(0, Math.min(activeCenter - viewMid, maxScroll))
+    strip.scrollTo({ left: target, behavior: 'smooth' })
+    // Update arrows after smooth scroll settles a bit.
+    const t = window.setTimeout(updatePipsScrollState, 220)
+    return () => window.clearTimeout(t)
+  }, [level, levelCount, updatePipsScrollState])
+
+  useEffect(() => {
+    const strip = levelPipsRef.current
+    if (!strip) return
+    updatePipsScrollState()
+    const onScroll = () => updatePipsScrollState()
+    strip.addEventListener('scroll', onScroll, { passive: true })
+    const ro = new ResizeObserver(() => updatePipsScrollState())
+    ro.observe(strip)
+    return () => {
+      strip.removeEventListener('scroll', onScroll)
+      ro.disconnect()
+    }
+  }, [levelCount, updatePipsScrollState])
+
   const memoryHint =
     level <= 1
       ? 'Level 1: full stroke-path guide — trace the whole character.'
@@ -1655,61 +1723,88 @@ export default function TracePad({
       </div>
 
       <div
-        className="level-pips"
-        role="list"
+        className={`level-pips-wrap${pipsOverflow ? ' is-overflow' : ''}`}
         aria-label={`Levels beaten: ${beatenSet.size} of ${levelCount}`}
       >
-        {Array.from({ length: levelCount }, (_, i) => {
-          const L = i + 1
-          const unlocked = isLevelUnlocked(character, L)
-          const beaten = beatenSet.has(L)
-          const active = L === level
-          return (
-            <button
-              key={L}
-              type="button"
-              role="listitem"
-              className={[
-                'level-pip',
-                beaten ? 'is-beaten' : '',
-                active ? 'is-active' : '',
-                !unlocked ? 'is-locked' : '',
-              ]
-                .filter(Boolean)
-                .join(' ')}
-              style={
-                beaten || active
-                  ? {
-                      ['--pip' as string]: accent,
-                    }
-                  : undefined
-              }
-              disabled={!unlocked || phase === 'demo' || phase === 'loading'}
-              onClick={() => selectLevel(L)}
-              aria-label={
-                beaten
-                  ? `Level ${L}, beaten${active ? ', selected' : ''}`
-                  : unlocked
-                    ? `Level ${L}${active ? ', selected' : ''}`
-                    : `Level ${L}, locked`
-              }
-              title={
-                unlocked
-                  ? beaten
-                    ? L > strokeCount
-                      ? `Final memory (beaten) — tap to review`
-                      : `Level ${L} (beaten) — tap to review`
-                    : L > strokeCount
-                      ? 'Final memory — all strokes, no guide'
-                      : `Level ${L}`
-                  : `Beat level ${L - 1} to unlock`
-              }
-            >
-              <span className="level-pip-dot" />
-              <span className="level-pip-num">{L}</span>
-            </button>
-          )
-        })}
+        <button
+          type="button"
+          className="level-pips-arrow"
+          aria-label="Scroll levels left"
+          title="Earlier levels"
+          disabled={!canScrollPipsLeft}
+          onClick={() => scrollPipsBy(-1)}
+          hidden={!pipsOverflow}
+        >
+          ‹
+        </button>
+        <div
+          ref={levelPipsRef}
+          className="level-pips"
+          role="list"
+        >
+          {Array.from({ length: levelCount }, (_, i) => {
+            const L = i + 1
+            const unlocked = isLevelUnlocked(character, L)
+            const beaten = beatenSet.has(L)
+            const active = L === level
+            return (
+              <button
+                key={L}
+                type="button"
+                role="listitem"
+                className={[
+                  'level-pip',
+                  beaten ? 'is-beaten' : '',
+                  active ? 'is-active' : '',
+                  !unlocked ? 'is-locked' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                style={
+                  beaten || active
+                    ? {
+                        ['--pip' as string]: accent,
+                      }
+                    : undefined
+                }
+                disabled={!unlocked || phase === 'demo' || phase === 'loading'}
+                onClick={() => selectLevel(L)}
+                aria-label={
+                  beaten
+                    ? `Level ${L}, beaten${active ? ', selected' : ''}`
+                    : unlocked
+                      ? `Level ${L}${active ? ', selected' : ''}`
+                      : `Level ${L}, locked`
+                }
+                title={
+                  unlocked
+                    ? beaten
+                      ? L > strokeCount
+                        ? `Final memory (beaten) — tap to review`
+                        : `Level ${L} (beaten) — tap to review`
+                      : L > strokeCount
+                        ? 'Final memory — all strokes, no guide'
+                        : `Level ${L}`
+                    : `Beat level ${L - 1} to unlock`
+                }
+              >
+                <span className="level-pip-dot" />
+                <span className="level-pip-num">{L}</span>
+              </button>
+            )
+          })}
+        </div>
+        <button
+          type="button"
+          className="level-pips-arrow"
+          aria-label="Scroll levels right"
+          title="Later levels"
+          disabled={!canScrollPipsRight}
+          onClick={() => scrollPipsBy(1)}
+          hidden={!pipsOverflow}
+        >
+          ›
+        </button>
       </div>
 
       <div
