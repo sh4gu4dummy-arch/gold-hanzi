@@ -579,16 +579,37 @@ export default function TracePad({
   showMyStrokesRef.current = showMyStrokes
   demoEnabledRef.current = demoEnabled
 
-  /** Speak character when Sound is on; surfaces no-voice note. */
+  /** Apply speak result: clear note on success; only warn when speak truly fails. */
+  const applySpeakResult = useCallback((result: SpeakResult) => {
+    if (result === 'ok' || result === 'skipped') {
+      setVoiceNote(null)
+    } else if (result === 'no-voice' || result === 'unsupported') {
+      setVoiceNote('No Mandarin voice on this device — Sound skipped.')
+    }
+  }, [])
+
+  /** Automatic speak (level start / complete) — gated by Sound preference. */
   const maybeSpeak = useCallback(async () => {
     if (!getSoundEnabled()) return
     const result: SpeakResult = await speakHanzi(character)
-    if (result === 'no-voice') {
-      setVoiceNote('No Mandarin voice on this device — Sound skipped.')
-    } else if (result === 'ok') {
-      setVoiceNote(null)
+    applySpeakResult(result)
+  }, [character, applySpeakResult])
+
+  /** Manual replay — always allowed, even when auto Sound is off. */
+  const speakNow = useCallback(async () => {
+    const result: SpeakResult = await speakHanzi(character)
+    applySpeakResult(result)
+  }, [character, applySpeakResult])
+
+  const soundHoldTimerRef = useRef<number | null>(null)
+  const soundDidLongPressRef = useRef(false)
+
+  const clearSoundHoldTimer = useCallback(() => {
+    if (soundHoldTimerRef.current != null) {
+      window.clearTimeout(soundHoldTimerRef.current)
+      soundHoldTimerRef.current = null
     }
-  }, [character])
+  }, [])
 
   // Cancel in-flight TTS when leaving this character.
   useEffect(() => {
@@ -1449,9 +1470,35 @@ export default function TracePad({
     if (!next) {
       cancelSpeech()
       setVoiceNote(null)
+    }
+  }
+
+  const onSoundPointerDown = () => {
+    soundDidLongPressRef.current = false
+    clearSoundHoldTimer()
+    soundHoldTimerRef.current = window.setTimeout(() => {
+      soundHoldTimerRef.current = null
+      soundDidLongPressRef.current = true
+      toggleSoundEnabled()
+    }, 400)
+  }
+
+  const onSoundPointerUp = () => {
+    clearSoundHoldTimer()
+  }
+
+  const onSoundPointerCancel = () => {
+    // Clear hold timer only — keep long-press flag so the following click is ignored.
+    clearSoundHoldTimer()
+  }
+
+  const onSoundClick = () => {
+    clearSoundHoldTimer()
+    if (soundDidLongPressRef.current) {
+      soundDidLongPressRef.current = false
       return
     }
-    void maybeSpeak()
+    void speakNow()
   }
 
   const toggleShowMyStrokes = () => {
@@ -1697,10 +1744,19 @@ export default function TracePad({
         <button
           type="button"
           className={`icon-btn${soundEnabled ? ' is-on' : ''}`}
-          onClick={toggleSoundEnabled}
+          onClick={onSoundClick}
+          onPointerDown={onSoundPointerDown}
+          onPointerUp={onSoundPointerUp}
+          onPointerCancel={onSoundPointerCancel}
+          onPointerLeave={onSoundPointerCancel}
+          onContextMenu={(e) => e.preventDefault()}
           aria-pressed={soundEnabled}
-          aria-label={soundEnabled ? 'Sound on' : 'Sound off'}
-          title={soundEnabled ? 'Sound on' : 'Sound off'}
+          aria-label={
+            soundEnabled
+              ? 'Tap to hear character. Hold to turn auto sound off.'
+              : 'Tap to hear character. Hold to turn auto sound on.'
+          }
+          title="Tap to hear · hold to toggle auto"
         >
           <span aria-hidden="true">{soundEnabled ? '🔊' : '🔇'}</span>
         </button>

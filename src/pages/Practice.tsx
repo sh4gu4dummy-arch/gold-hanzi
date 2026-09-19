@@ -12,7 +12,6 @@ import { getDifficultyMode, getHskView } from '../lib/homePref'
 import { clearCharProgress, getCharProgress } from '../lib/progress'
 import type { CharProgress } from '../lib/progress'
 import { speakHanzi } from '../lib/speak'
-import { getSoundEnabled } from '../lib/soundPref'
 import { APP_VERSION } from '../version'
 
 export default function Practice() {
@@ -72,7 +71,7 @@ export default function Practice() {
   }
 
   const handleGlyphSpeak = () => {
-    if (!getSoundEnabled()) return
+    // Manual replay — always allowed, even when auto Sound is off.
     void speakHanzi(entry.character)
   }
 

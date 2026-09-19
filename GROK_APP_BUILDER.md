@@ -49,6 +49,15 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-19 — Mandarin TTS detection + sound replay UX (v0.014)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `speak.ts`, `TracePad.tsx`, `Practice.tsx`, `version.ts`, `README.md`
+
+- **Voice pick:** poll `getVoices` / `voiceschanged` up to ~2s; match `zh*`/`cmn*` and common Chinese TTS names (Ting-Ting, Mei-Jia, Xiaoxiao, …). If no matched voice object but `speechSynthesis` exists, still speak with `lang=zh-CN` (OS picks); `no-voice` only when speak cannot be attempted.
+- **Replay UX:** tap 🔊 = manual hear now (works with auto Sound off); hold ~400ms = toggle auto Sound. Glyph tap also manual. Auto speak on level start/complete still gated by preference. Clear “No Mandarin voice” note after a successful speak.
+
+
 ### 2026-09-18 — Restore practice pad + CF base + TTS cues (v0.013)
 
 **Who:** gold-hanzi (repo Grok)  
