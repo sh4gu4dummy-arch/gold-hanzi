@@ -708,10 +708,20 @@ export default function TracePad({
       canvas.width = px
       canvas.height = px
     }
-    // Fill the square stage; CSS absolute inset centers via host layout.
+    // Use the square cssSize explicitly — width/height 100% stretches the
+    // bitmap when the stage is non-square (aspect-ratio + max-height clamp)
+    // and desyncs guide geometry from pointer ink / HanziWriter.
+    const wrapW = wrap.clientWidth
+    const wrapH = wrap.clientHeight || wrapW
+    const left = Math.round((wrapW - cssSize) / 2)
+    const top = Math.round((wrapH - cssSize) / 2)
     for (const canvas of [guide, ink]) {
-      canvas.style.width = '100%'
-      canvas.style.height = '100%'
+      canvas.style.width = `${cssSize}px`
+      canvas.style.height = `${cssSize}px`
+      canvas.style.left = `${left}px`
+      canvas.style.top = `${top}px`
+      canvas.style.right = 'auto'
+      canvas.style.bottom = 'auto'
     }
     return { cssSize, dpr }
   }, [ensureInkStore])
@@ -1170,11 +1180,14 @@ export default function TracePad({
 
     clearAutoAdvance()
 
-    if (!strokeData) {
-      // Band chunk still loading (or failed — loadError set by ensure effect).
+    // Band lazy-load: re-run when strokeData arrives (deps include strokeData).
+    const live = STROKE_DATA[character] ?? getStrokeData(character)
+    if (!live) {
       setPhase('loading')
       return
     }
+    // Skip one frame when character flips before ensure effect updates state.
+    if (strokeData !== live) return
     setLoadError(null)
 
     const session = ++sessionRef.current
@@ -1256,9 +1269,8 @@ export default function TracePad({
       writerRef.current = null
       host.replaceChildren()
     }
-    // Intentionally only re-init on character/accent change.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [character, accent])
+    // strokeData: cold practice URL must init after band chunk lands.
+  }, [character, accent, strokeData])
 
   // Resize observer: rebuild canvases when the stage size actually changes.
   // Skip no-op / degenerate sizes so layout recovery does not wipe ink+guide.

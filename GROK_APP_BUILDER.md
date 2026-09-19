@@ -49,6 +49,15 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-19 — Align purple guide with green stroke geometry (v0.019)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `grading.ts`, `TracePad.tsx`, `index.css`, `version.ts`
+
+- **Root cause:** HanziWriter Positioner uses CHARACTER_BOUNDS `(0,-124)→(1024,900)`, so demo/outline strokes sit ~`124·hanziScale` CSS px **above** TracePad guides/mask which assumed a `0…1024` Y origin. Purple (writer) vs green (guide `drawStrokeGuides`) looked vertically split on 三 and friends.
+- **Fix:** `HANZI_Y_MIN = -124` + content-center target `HANZI_BOUNDS_CENTER_Y` (388) wired into `applyHanziTransform` / `mapHanziPointToCss` / `contentCenterOffset` so guides, mask, and writer share one transform and still sit on the mi-zi-ge midline. Guide/ink canvases also size to the square `cssSize` (no `width/height: 100%` stretch when the stage is non-square).
+- **Also:** TracePad init effect now depends on `strokeData` so a cold `/practice/:id` load still starts after the HSK band chunk arrives (previously stuck on empty pad).
+
 ### 2026-09-19 — HSK3, band lazy-load, lesson counts, levels above pad (v0.018)
 
 **Who:** gold-hanzi (repo Grok)  

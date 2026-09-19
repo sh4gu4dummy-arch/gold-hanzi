@@ -26,6 +26,15 @@ export const STROKE_HIT_INK_FACTOR = 0.48
 export const HANZI_VIEWBOX = 1024
 /** Padding around the 1024 viewBox — must match HanziWriter.create({ padding }). */
 export const HANZI_PADDING = 28
+/**
+ * HanziWriter Positioner CHARACTER_BOUNDS (box is (0,-124)→(1024,900)).
+ * Guides/mask must use the same Y origin or purple demo strokes sit ~124·scale
+ * CSS px above green completed guides. Content-centering targets the bounds
+ * midpoint (not 512) so glyphs still sit on the mi-zi-ge midline.
+ */
+export const HANZI_Y_MIN = -124
+export const HANZI_Y_MAX = 900
+export const HANZI_BOUNDS_CENTER_Y = (HANZI_Y_MIN + HANZI_Y_MAX) / 2
 
 /**
  * Responsive ink width in CSS px for TracePad stroke + grading stamp.
@@ -148,9 +157,9 @@ export function contentCenterFromMedians(medians: number[][][]): Point {
   return { x: (minX + maxX) / 2, y: (minY + maxY) / 2 }
 }
 
-/** Offset that maps content center (cx, cy) onto the 1024 viewBox center. */
+/** Offset that maps content center onto HanziWriter bounds mid (512, 388). */
 export function contentCenterOffset(center: Point): Point {
-  return { x: HANZI_CENTER - center.x, y: HANZI_CENTER - center.y }
+  return { x: HANZI_CENTER - center.x, y: HANZI_BOUNDS_CENTER_Y - center.y }
 }
 
 /**
@@ -285,8 +294,9 @@ export function offsetCharacterGeometry(
 
 /**
  * Apply hanzi view transform in CSS-pixel space (y-up → canvas y-down).
- * After pad + scale(s,-s), optionally translate(512-cx, 512-cy) so glyph
- * content center maps to viewBox center → mi-zi-ge pad center.
+ * Matches HanziWriter Positioner (CHARACTER_BOUNDS y from HANZI_Y_MIN, pad,
+ * uniform scale, y-flip). After that, optionally translate so glyph content center maps to HanziWriter
+ * bounds mid (512, 388) → mi-zi-ge pad center.
  * Caller must already have setTransform(dpr, 0, 0, dpr, 0, 0) when drawing to a DPR canvas.
  */
 export function applyHanziTransform(
@@ -296,10 +306,15 @@ export function applyHanziTransform(
 ): void {
   const scale = hanziScale(cssSize)
   const cx = contentCenter?.x ?? HANZI_CENTER
-  const cy = contentCenter?.y ?? HANZI_CENTER
-  ctx.translate(HANZI_PADDING, cssSize - HANZI_PADDING)
+  const cy = contentCenter?.y ?? HANZI_BOUNDS_CENTER_Y
+  // Match HanziWriter Positioner: translate(pad, size - pad - (-HANZI_Y_MIN)*scale)
+  ctx.translate(
+    HANZI_PADDING,
+    cssSize - HANZI_PADDING + HANZI_Y_MIN * scale,
+  )
   ctx.scale(scale, -scale)
-  ctx.translate(HANZI_CENTER - cx, HANZI_CENTER - cy)
+  // Land content center on bounds mid (same as centerCharacterData / writer).
+  ctx.translate(HANZI_CENTER - cx, HANZI_BOUNDS_CENTER_Y - cy)
 }
 
 /** Map one hanzi (1024, y-up) point into CSS pixels (same pad/scale/center as applyHanziTransform). */
@@ -311,12 +326,13 @@ export function mapHanziPointToCss(
 ): Point {
   const scale = hanziScale(cssSize)
   const cx = contentCenter?.x ?? HANZI_CENTER
-  const cy = contentCenter?.y ?? HANZI_CENTER
+  const cy = contentCenter?.y ?? HANZI_BOUNDS_CENTER_Y
   const hx = x + (HANZI_CENTER - cx)
-  const hy = y + (HANZI_CENTER - cy)
+  const hy = y + (HANZI_BOUNDS_CENTER_Y - cy)
   return {
     x: HANZI_PADDING + hx * scale,
-    y: cssSize - HANZI_PADDING - hy * scale,
+    // Same Y origin as applyHanziTransform / HanziWriter Positioner.
+    y: cssSize - HANZI_PADDING + HANZI_Y_MIN * scale - hy * scale,
   }
 }
 

@@ -681,16 +681,17 @@ h1 {
 
 .hanzi-host > svg,
 .hanzi-host > canvas {
-  width: 100% !important;
-  height: 100% !important;
+  /* Keep writer square; parent .hanzi-host is inset:0 — center via grid. */
+  width: auto !important;
+  height: auto !important;
+  max-width: 100%;
+  max-height: 100%;
   display: block;
 }
 
 .trace-canvas {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  /* width/height/left/top set in JS to the square cssSize (no stretch). */
   touch-action: none;
   cursor: crosshair;
 }
@@ -817,9 +818,7 @@ h1 {
 
 .guide-canvas {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  /* width/height/left/top set in JS to the square cssSize (no stretch). */
   pointer-events: none;
 }
 

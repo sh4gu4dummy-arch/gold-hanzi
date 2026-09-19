@@ -26,5 +26,5 @@ Fat-mask COVER / cells remain informational and **must not** gate pass.
 
 - Outside-letter ink is drawn for feel but NEVER counted (`stampInk` only on letter pixels).
 - `inkWidthCss()` ≈ clamp(16, 4vw, 22) (fallback `INK_WIDTH = 18`).
-- Letter mask: rasterize vendored Make-Me-a-Hanzi stroke Path2D fills onto an offscreen canvas (hanzi 1024 viewBox, `HANZI_PADDING`, y-flip + content-center — same transform as TracePad guides / hanzi-writer).
+- Letter mask: rasterize vendored Make-Me-a-Hanzi stroke Path2D fills onto an offscreen canvas (hanzi 1024 viewBox, `HANZI_PADDING`, HanziWriter `HANZI_Y_MIN` (-124) origin, y-flip + content-center — same transform as TracePad guides / hanzi-writer).
 - `finish()` when stroke checks pass: `done=true`, `onDone()`, mark level beaten.
