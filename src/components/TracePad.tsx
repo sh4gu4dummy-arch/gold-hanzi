@@ -408,6 +408,64 @@ function drawGuideNumber(
   ctx.restore()
 }
 
+
+/**
+ * Median tip + outgoing unit tangent (hanzi y-up).
+ * Walks backward from the last sample for a usable segment.
+ */
+function endMedianPointAndTangent(
+  median: number[][],
+): { x: number; y: number; tx: number; ty: number } | null {
+  if (!median || median.length === 0) return null
+  const end = median[median.length - 1]
+  if (!end || end.length < 2) return null
+  for (let i = median.length - 1; i >= 1; i--) {
+    const a = median[i - 1]
+    const b = median[i]
+    if (!a || !b || a.length < 2 || b.length < 2) continue
+    const dx = b[0]! - a[0]!
+    const dy = b[1]! - a[1]!
+    const len = Math.hypot(dx, dy)
+    if (len <= 1e-3) continue
+    return { x: end[0]!, y: end[1]!, tx: dx / len, ty: dy / len }
+  }
+  return { x: end[0]!, y: end[1]!, tx: 1, ty: 0 }
+}
+
+/**
+ * Very small green check just outside a completed stroke tip.
+ * Drawn in hanzi space under applyHanziTransform (counter y-flip).
+ */
+function drawStrokeDoneCheck(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  u: number,
+  scale: number,
+): void {
+  const r = u * 0.36
+  ctx.save()
+  ctx.translate(cx, cy)
+  ctx.scale(1, -1)
+  ctx.beginPath()
+  ctx.arc(0, 0, r, 0, Math.PI * 2)
+  ctx.fillStyle = hexToRgba(DONE_STROKE_GREEN, 0.95)
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.92)'
+  ctx.lineWidth = Math.max(1 / scale, u * 0.055)
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.strokeStyle = '#fff'
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  ctx.lineWidth = Math.max(1.35 / scale, u * 0.11)
+  ctx.moveTo(-r * 0.42, r * 0.04)
+  ctx.lineTo(-r * 0.06, r * 0.38)
+  ctx.lineTo(r * 0.46, -r * 0.36)
+  ctx.stroke()
+  ctx.restore()
+}
+
 /**
  * Draw stroke-path guides + start-number / direction-arrow markers.
  * Same applyHanziTransform as the grading mask / hanzi-writer (G1).
@@ -433,7 +491,8 @@ function drawStrokeGuides(
   const { u, scale } = markerSizeHanzi(cssSize)
   const markerFill = hexToRgba(accent, 0.92)
   const faintFill = hexToRgba(accent, 0.22)
-  const doneFill = hexToRgba(DONE_STROKE_GREEN, 0.42)
+  // Soft underlay — stroke-end checks + char outline carry the “done” cue.
+  const doneFill = hexToRgba(DONE_STROKE_GREEN, 0.26)
 
   const contentCenter = contentCenterFromMedians(medians)
 
@@ -477,6 +536,18 @@ function drawStrokeGuides(
       numFill,
       markColor,
     )
+  }
+
+  // Tiny green ✓ just past each completed stroke tip (outside the path).
+  if (strokeDone) {
+    for (let i = 0; i < medians.length; i++) {
+      if (!strokeDone[i]) continue
+      const tip = endMedianPointAndTangent(medians[i]!)
+      if (!tip) continue
+      const cx = tip.x + tip.tx * (u * 0.72)
+      const cy = tip.y + tip.ty * (u * 0.72)
+      drawStrokeDoneCheck(ctx, cx, cy, u, scale)
+    }
   }
   ctx.restore()
 }
@@ -1121,7 +1192,9 @@ export default function TracePad({
     const beaten = markLevelBeaten(character, levelRef.current, inkDataUrl)
     notifyProgress(beaten)
     void maybeSpeak()
-    onDone?.()
+    if (beaten.beaten.length >= levelCountRef.current) {
+      onDone?.()
+    }
 
     clearAutoAdvance()
     const passedLevel = levelRef.current
@@ -1747,6 +1820,7 @@ export default function TracePad({
   }
 
   const beatenSet = new Set(progress.beaten)
+  const charCleared = levelCount > 0 && beatenSet.size >= levelCount
   const levelLabel =
     levelCount === 0
       ? 'Levels · Loading…'
@@ -1873,7 +1947,9 @@ export default function TracePad({
               style={
                 beaten || active
                   ? {
-                      ['--pip' as string]: accent,
+                      ['--pip' as string]: beaten
+                        ? DONE_STROKE_GREEN
+                        : accent,
                     }
                   : undefined
               }
@@ -1899,6 +1975,11 @@ export default function TracePad({
               }
             >
               <span className="level-pip-num">{L}</span>
+              {beaten && (
+                <span className="level-pip-check" aria-hidden="true">
+                  ✓
+                </span>
+              )}
             </button>
           )
         })}
@@ -1998,7 +2079,7 @@ export default function TracePad({
         <div className="trace-stage-slot">
           <div
             ref={wrapRef}
-            className={`trace-stage${phase === 'passed' ? ' is-done' : ''}`}
+            className={`trace-stage${charCleared ? ' is-char-cleared' : ''}`}
             style={{ ['--accent' as string]: accent }}
           >
             <div className="tianzige" aria-hidden="true">

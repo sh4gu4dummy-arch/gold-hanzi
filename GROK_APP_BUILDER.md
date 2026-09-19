@@ -49,6 +49,15 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-19 — Stroke and level checks, character done outline (v0.023)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `TracePad.tsx`, `index.css`, `version.ts`
+
+- **Stroke complete:** very small green ✓ just outside each completed stroke tip (guide canvas; `#22A06B`).
+- **Level beaten:** green check badge on the level pip; beaten pips use DONE_STROKE_GREEN.
+- **Character cleared (all levels):** light green outline on `.trace-stage` (`is-char-cleared`); softened stroke done underlay (0.26) so outline is the clear cue; removed per-level accent `is-done` ring. `onDone` fires only when all levels are beaten.
+
 ### 2026-09-19 — Ordered strokes, 150% try-again, home bar progress (v0.022)
 
 **Who:** gold-hanzi (repo Grok)  
