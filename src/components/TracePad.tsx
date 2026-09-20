@@ -645,6 +645,7 @@ export default function TracePad({
   const doneRef = useRef(false)
   const levelRef = useRef(1)
   const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const phaseRef = useRef<Phase>('loading')
   const levelCountRef = useRef(0)
   const showMyStrokesRef = useRef(false)
   const prevStrokeDoneRef = useRef<boolean[] | null>(null)
@@ -737,6 +738,7 @@ export default function TracePad({
   const [gestureCount, setGestureCount] = useState(0)
 
   levelRef.current = level
+  phaseRef.current = phase
   showMyStrokesRef.current = showMyStrokes
   demoEnabledRef.current = demoEnabled
   autoNextLevelRef.current = autoNextLevel
@@ -1211,6 +1213,36 @@ export default function TracePad({
     ],
   )
 
+  /** Schedule auto-advance from the passed clear bar (level or next character). */
+  const scheduleAutoAdvanceFromPassed = useCallback(() => {
+    clearAutoAdvance()
+    if (!autoNextLevelRef.current) return
+    const passedLevel = levelRef.current
+    const total = levelCountRef.current
+    autoAdvanceTimerRef.current = setTimeout(() => {
+      autoAdvanceTimerRef.current = null
+      if (!autoNextLevelRef.current) return
+      const nextLevel = passedLevel + 1
+      if (nextLevel > total) {
+        // Last level cleared → next character (same delay).
+        onAutoNextCharacterRef.current?.()
+        return
+      }
+      if (!isLevelUnlocked(character, nextLevel)) return
+      // Unbeaten next → demo+write; beaten next → review (rare).
+      if (isLevelBeaten(character, nextLevel)) {
+        enterReviewMode(nextLevel)
+      } else {
+        clearAutoAdvance()
+        sessionRef.current += 1
+        setLevel(nextLevel)
+        levelRef.current = nextLevel
+        doneRef.current = false
+        void runDemoThenWriteRef.current?.(nextLevel)
+      }
+    }, AUTO_ADVANCE_MS)
+  }, [character, clearAutoAdvance, enterReviewMode])
+
   const finishPass = useCallback(() => {
     if (doneRef.current) return
     doneRef.current = true
@@ -1244,40 +1276,14 @@ export default function TracePad({
       onDone?.()
     }
 
-    clearAutoAdvance()
-    if (!autoNextLevelRef.current) return
-    const passedLevel = levelRef.current
-    const total = levelCountRef.current
-    autoAdvanceTimerRef.current = setTimeout(() => {
-      autoAdvanceTimerRef.current = null
-      if (!autoNextLevelRef.current) return
-      const nextLevel = passedLevel + 1
-      if (nextLevel > total) {
-        // Last level cleared → next character (same delay).
-        onAutoNextCharacterRef.current?.()
-        return
-      }
-      if (!isLevelUnlocked(character, nextLevel)) return
-      // Unbeaten next → demo+write; beaten next → review (rare).
-      if (isLevelBeaten(character, nextLevel)) {
-        enterReviewMode(nextLevel)
-      } else {
-        clearAutoAdvance()
-        sessionRef.current += 1
-        setLevel(nextLevel)
-        levelRef.current = nextLevel
-        doneRef.current = false
-        void runDemoThenWriteRef.current?.(nextLevel)
-      }
-    }, AUTO_ADVANCE_MS)
+    scheduleAutoAdvanceFromPassed()
   }, [
     character,
-    clearAutoAdvance,
-    enterReviewMode,
     maybeSpeak,
     notifyProgress,
     onDone,
     paintGuide,
+    scheduleAutoAdvanceFromPassed,
     strokeData,
   ])
 
@@ -1926,7 +1932,11 @@ export default function TracePad({
     setAutoNextLevel(next)
     setAutoNextLevelState(next)
     autoNextLevelRef.current = next
-    if (!next) clearAutoAdvance()
+    if (!next) {
+      clearAutoAdvance()
+    } else if (phaseRef.current === 'passed') {
+      scheduleAutoAdvanceFromPassed()
+    }
   }
 
   const toggleSoundEnabled = () => {

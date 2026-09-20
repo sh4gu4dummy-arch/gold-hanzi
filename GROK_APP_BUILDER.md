@@ -49,6 +49,14 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-20 — Auto next solid ON; advance when toggled after clear (v0.042)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `TracePad.tsx`, `index.css`, `version.ts`
+
+- **Auto next ON style:** clear-bar `.trace-clear-bar-auto.is-on` uses the same solid accent recipe as Replay/Demo (`is-accent` / `is-on`): purple fill, white label, border, soft shadow — not the faint white wash. Off stays opacity 0.62 on the purple bar.
+- **Toggle after clear:** turning Auto next ON while still on `phase === 'passed'` schedules the same auto-advance (`AUTO_ADVANCE_MS`) as clearing with auto already on (next level, or next character on last level). Shared `scheduleAutoAdvanceFromPassed()`; toggle OFF still clears the timer.
+
 ### 2026-09-20 — Demo/Auto on match Replay solid purple (v0.041)
 
 **Who:** gold-hanzi (repo Grok)  
