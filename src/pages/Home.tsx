@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import ThemeToggle from '../components/ThemeToggle'
 import {
   ensureCatalogForView,
+  ensureCharacterEntry,
   getCatalog,
   isV3CatalogReady,
 } from '../data/characters'
@@ -28,6 +29,10 @@ import {
   setHskView,
 } from '../lib/homePref'
 import type { DifficultyMode, HskView } from '../lib/homePref'
+import {
+  getLastPracticePath,
+  shouldSkipResume,
+} from '../lib/practiceResume'
 import { beatenCount, clearAllProgress } from '../lib/progress'
 import { APP_VERSION } from '../version'
 import type { HomeBand, HomeLesson } from '../lib/homeCatalog'
@@ -37,6 +42,7 @@ const STRICT_INFO =
 const DEV_INFO = 'Dev unlocked opens the whole catalog.'
 
 export default function Home() {
+  const navigate = useNavigate()
   const [revision, setRevision] = useState(0)
   const [hskView, setHskViewState] = useState<HskView>(() => getHskView())
   const [difficulty, setDifficultyState] = useState<DifficultyMode>(() =>
@@ -48,6 +54,27 @@ export default function Home() {
   const [openLessons, setOpenLessons] = useState<Set<string>>(() => new Set())
   const [modeInfo, setModeInfo] = useState<null | 'strict' | 'dev'>(null)
   const modeInfoRef = useRef<HTMLDivElement | null>(null)
+
+  // Cold start / post deep-link-fail: restore last practice when safe.
+  useEffect(() => {
+    if (shouldSkipResume()) return
+    const path = getLastPracticePath()
+    if (!path) return
+    const id = path.slice('/practice/'.length)
+    if (!id) return
+    let cancelled = false
+    void ensureCharacterEntry(id)
+      .then((found) => {
+        if (cancelled || !found) return
+        navigate(path, { replace: true })
+      })
+      .catch(() => {
+        /* stay on Home */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [navigate])
   /** Classic path is ready immediately; v3 waits for lazy extras. */
   const [catalogReady, setCatalogReady] = useState(
     () => getHskView() === 'classic' || isV3CatalogReady(),

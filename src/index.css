@@ -14,6 +14,7 @@
   --error-text: #9b2c2c;
   --radius: 20px;
   --sans: 'Noto Sans SC', 'Noto Sans CJK SC', system-ui, sans-serif;
+  --pinyin: 'Noto Sans', 'Noto Sans SC', system-ui, sans-serif;
   --hand: 'Ma Shan Zheng', 'KaiTi', 'STKaiti', 'Noto Serif SC', serif;
   --serif: var(--hand);
   --body-glow: #2a2140;
@@ -229,6 +230,7 @@ h1 {
 }
 
 .char-pinyin {
+  font-family: var(--pinyin);
   font-size: 15px;
   font-weight: 500;
   color: var(--accent-ink);
@@ -389,6 +391,7 @@ h1 {
 
 .practice-pinyin {
   display: block;
+  font-family: var(--pinyin);
   font-size: clamp(32px, 9vw, 44px);
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -631,6 +634,19 @@ h1 {
 }
 
 .dock-btn-sound-icon svg {
+  display: block;
+  width: 1em;
+  height: 1em;
+}
+
+.dock-btn-mode-icon {
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.dock-btn-mode-icon svg {
   display: block;
   width: 1em;
   height: 1em;
@@ -1898,6 +1914,7 @@ h1 {
 }
 
 .practice-phrase-pinyin {
+  font-family: var(--pinyin);
   font-size: 15px;
   font-weight: 600;
   line-height: 1.2;

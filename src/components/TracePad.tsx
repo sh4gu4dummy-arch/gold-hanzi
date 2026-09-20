@@ -2190,14 +2190,45 @@ export default function TracePad({
           className={`dock-btn${showMyStrokes ? ' is-on' : ''}`}
           onClick={toggleShowMyStrokes}
           aria-pressed={showMyStrokes}
-          aria-label={showMyStrokes ? 'Show guides' : 'Show my strokes'}
-          title={showMyStrokes ? 'Show guides' : 'Show my strokes'}
+          aria-label={showMyStrokes ? 'My ink' : 'Guide'}
+          title={showMyStrokes ? 'My ink' : 'Guide'}
           disabled={phase !== 'writing' && phase !== 'passed'}
         >
-          <span className="dock-btn-icon" aria-hidden="true">
-            {showMyStrokes ? '✎' : '☰'}
+          <span className="dock-btn-icon dock-btn-mode-icon" aria-hidden="true">
+            {showMyStrokes ? (
+              <svg
+                viewBox="0 0 24 24"
+                width="1em"
+                height="1em"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+              </svg>
+            ) : (
+              <svg
+                viewBox="0 0 24 24"
+                width="1em"
+                height="1em"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" opacity="0.45" />
+                <path d="M7 17c2.5-6 5.5-9.5 10-11" />
+                <circle cx="7" cy="17" r="1.25" fill="currentColor" stroke="none" />
+              </svg>
+            )}
           </span>
-          <span className="dock-btn-label">Strokes</span>
+          <span className="dock-btn-label">
+            {showMyStrokes ? 'My ink' : 'Guide'}
+          </span>
         </button>
         <button
           type="button"

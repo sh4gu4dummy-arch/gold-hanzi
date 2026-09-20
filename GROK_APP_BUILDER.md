@@ -49,6 +49,15 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-20 — Guide/My ink, practice resume, Noto Sans pinyin (v0.035)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `TracePad.tsx`, `Practice.tsx`, `Home.tsx`, `practiceResume.ts`, `index.html`, `index.css`, `version.ts`
+
+- **Guide / My ink:** dock toggle labels show current mode (Guide vs My ink); icons are outline/path vs pen (no hamburger). XOR guide/ink behavior unchanged.
+- **Practice resume:** last `/practice/:id` persisted in localStorage; Home cold-start (and post deep-link fail without skip) restores when the entry resolves. Home link sets session skip so intentional Home sticks. Practice waits for catalog (retry once) before Navigate-to-home to avoid false not-found.
+- **Pinyin font:** Google Fonts **Noto Sans** (Latin) on `.practice-pinyin` / `.practice-phrase-pinyin` / `.char-pinyin` only; hanzi stays Noto Sans SC.
+
 ### 2026-09-20 — Practice layout: top progress, Demo with levels, large pinyin (v0.034)
 
 **Who:** gold-hanzi (repo Grok)  

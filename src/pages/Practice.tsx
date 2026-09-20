@@ -7,6 +7,7 @@ import {
   ensureCharacterEntry,
   getCatalog,
   getCharacter,
+  isV3CatalogReady,
 } from '../data/characters'
 import type { CharacterEntry } from '../data/characters'
 import {
@@ -26,6 +27,12 @@ import {
   setPhrasesEnabled,
   setSoundTipSeen,
 } from '../lib/homePref'
+import {
+  clearLastPracticePath,
+  getLastPracticePath,
+  markSkipResume,
+  setLastPracticePath,
+} from '../lib/practiceResume'
 import { clearCharProgress, getCharProgress } from '../lib/progress'
 import type { CharProgress } from '../lib/progress'
 import { phraseToPinyin } from '../lib/phrasePinyin'
@@ -41,6 +48,8 @@ export default function Practice() {
   const [catalogTick, setCatalogTick] = useState(0)
 
   // Resolve classic sync; lazy-load HSK 3.0 extras only if id is missing.
+  // Do not mark resolved (→ Navigate home) until catalog lookup finishes;
+  // retry once on load failure to avoid false "not found" on flaky mobile.
   useEffect(() => {
     let cancelled = false
     const hit = getCharacter(id)
@@ -58,22 +67,50 @@ export default function Practice() {
       return
     }
     setEntryResolved(false)
-    void ensureCharacterEntry(id)
-      .then((found) => {
-        if (cancelled) return
-        setEntry(found)
-        setEntryResolved(true)
-        setCatalogTick((n) => n + 1)
-      })
-      .catch(() => {
-        if (cancelled) return
-        setEntry(undefined)
-        setEntryResolved(true)
-      })
+    const resolve = (attempt: number): void => {
+      void ensureCharacterEntry(id)
+        .then((found) => {
+          if (cancelled) return
+          setEntry(found)
+          setEntryResolved(true)
+          setCatalogTick((n) => n + 1)
+          if (!found) {
+            // Real miss — drop stale resume so Home does not loop.
+            const last = getLastPracticePath()
+            if (last === `/practice/${id}`) clearLastPracticePath()
+            markSkipResume()
+          }
+        })
+        .catch(() => {
+          if (cancelled) return
+          if (attempt < 1) {
+            resolve(attempt + 1)
+            return
+          }
+          // Catalog never finished — stay on Loading (avoid false home).
+          // If v3 did merge, treat as a real miss.
+          if (isV3CatalogReady()) {
+            setEntry(undefined)
+            setEntryResolved(true)
+            const last = getLastPracticePath()
+            if (last === `/practice/${id}`) clearLastPracticePath()
+            markSkipResume()
+          } else {
+            setEntryResolved(false)
+          }
+        })
+    }
+    resolve(0)
     return () => {
       cancelled = true
     }
   }, [id])
+
+  // Persist last practice URL for minimize / cold-start resume.
+  useEffect(() => {
+    if (!entry?.id) return
+    setLastPracticePath(`/practice/${entry.id}`)
+  }, [entry?.id])
 
   const levelCount = entry ? strokeLevelCount(entry.character) : 0
 
@@ -176,7 +213,13 @@ export default function Practice() {
     <main className="page practice">
       <header className="practice-bar">
         <div className="practice-bar-row">
-          <Link className="practice-home" to="/" title="Home" aria-label="Home">
+          <Link
+            className="practice-home"
+            to="/"
+            title="Home"
+            aria-label="Home"
+            onClick={() => markSkipResume()}
+          >
             <span className="practice-home-icon" aria-hidden="true">
               ⌂
             </span>
