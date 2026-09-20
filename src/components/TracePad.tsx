@@ -54,6 +54,8 @@ type TracePadProps = {
   accent?: string
   onDone?: () => void
   onProgressChange?: (progress: CharProgress, levelCount: number) => void
+  /** Fires when the active practice level or its cleared state changes. */
+  onActiveLevelChange?: (level: number, levelCleared: boolean) => void
   /**
    * Optional host element (Practice header under top-bar pinyin).
    * When set, the level-pip strip is portaled there instead of under
@@ -636,6 +638,7 @@ export default function TracePad({
   accent = DEFAULT_ACCENT,
   onDone,
   onProgressChange,
+  onActiveLevelChange,
   levelPipsHost = null,
   nextCharAction = null,
 }: TracePadProps) {
@@ -779,6 +782,10 @@ export default function TracePad({
     },
     [levelCount, onProgressChange],
   )
+
+  useEffect(() => {
+    onActiveLevelChange?.(level, progress.beaten.includes(level))
+  }, [level, progress.beaten, onActiveLevelChange])
 
   const stageCssSize = () => {
     const wrap = wrapRef.current
@@ -1883,16 +1890,6 @@ export default function TracePad({
 
   const beatenSet = new Set(progress.beaten)
   const charCleared = levelCount > 0 && beatenSet.size >= levelCount
-  const levelLabel =
-    loadError
-      ? 'Levels · Unavailable'
-      : levelCount === 0
-        ? 'Levels · Loading…'
-        : phase === 'demo'
-          ? `Levels · Level ${level} · Demo`
-          : phase === 'passed'
-            ? `Levels · Level ${level} cleared (click to replay)`
-            : `Levels · Level ${level} of ${levelCount}`
 
   const strokeTotal = strokeData?.strokes.length ?? levelCount
   const strokesDone =
@@ -2065,28 +2062,6 @@ export default function TracePad({
 
   return (
     <div className="trace-pad">
-      <div className="stroke-progress" aria-live="polite">
-        <span className="stroke-progress-label">{levelLabel}</span>
-        {levelCount > 0 && (
-          <div
-            className="stroke-progress-track"
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={levelCount}
-            aria-valuenow={beatenSet.size}
-            aria-label={`${beatenSet.size} of ${levelCount} levels beaten`}
-          >
-            <span
-              className="stroke-progress-fill"
-              style={{
-                width: `${(beatenSet.size / levelCount) * 100}%`,
-                background: accent,
-              }}
-            />
-          </div>
-        )}
-      </div>
-
       {(phase === 'writing' || phase === 'passed' || phase === 'demo') && (
         <div className="grade-meter-row">
           {phase === 'writing' && (

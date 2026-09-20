@@ -49,6 +49,14 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-20 — Phrase pinyin until clear; drop level chrome (v0.033)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `Practice.tsx`, `TracePad.tsx`, `phrasePinyin.ts`, `index.css`, `version.ts`, `package.json`
+
+- **Phrase spoiler:** while the active level is uncleared, context phrase shows **pinyin only** (derived via `pinyin-pro` / `phraseToPinyin`); after that level is cleared, **hanzi appears next to pinyin**. Gloss + manual 🔊 TTS unchanged.
+- **Level chrome:** removed thin level progress bar and “Level N of M” / `cleared/total` near meaning; keep circled level pips only.
+
 ### 2026-09-20 — Dense practice top, phrase speak icon (v0.032)
 
 **Who:** gold-hanzi (repo Grok)  

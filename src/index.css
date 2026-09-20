@@ -438,36 +438,6 @@ h1 {
 }
 
 
-.stroke-progress {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  width: min(100%, 520px);
-  margin: 0 auto;
-  flex-shrink: 0;
-}
-
-.stroke-progress-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--accent-ink);
-  letter-spacing: 0.01em;
-}
-
-.stroke-progress-track {
-  height: 4px;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  overflow: hidden;
-}
-
-.stroke-progress-fill {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  transition: width 0.25s ease;
-}
-
 
 /* Live stroke-grade feedback — keep visible on short mobile viewports
    (do not hide with the max-height:750px hint collapse). */
@@ -1337,14 +1307,6 @@ h1 {
     font-size: 13px;
   }
 
-  .stroke-progress-label {
-    font-size: 11px;
-  }
-
-  .stroke-progress {
-    gap: 2px;
-  }
-
   .grade-meter {
     font-size: 11px;
   }
@@ -1440,14 +1402,6 @@ h1 {
     min-height: 44px;
     padding: 10px 18px;
     font-size: 15px;
-  }
-
-  .stroke-progress-label {
-    font-size: 14px;
-  }
-
-  .stroke-progress-track {
-    height: 6px;
   }
 }
 
@@ -1848,6 +1802,38 @@ h1 {
 }
 
 
+.practice-phrase-text {
+  appearance: none;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.practice-phrase-text:hover,
+.practice-phrase-text:focus-visible {
+  outline: none;
+  filter: brightness(1.05);
+}
+
+.practice-phrase-hanzi {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  font-size: 22px;
+  line-height: 1.15;
+  letter-spacing: 0.03em;
+  color: var(--text);
+}
+
 .practice-phrase-char {
   color: var(--text);
 }
@@ -1857,6 +1843,14 @@ h1 {
   font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+
+.practice-phrase-pinyin {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--accent-ink);
+  letter-spacing: 0.01em;
 }
 
 .practice-phrase-gloss {
@@ -1898,23 +1892,6 @@ h1 {
   outline: none;
 }
 
-.practice-phrase-hanzi {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 1px;
-  justify-content: flex-start;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  font: inherit;
-  font-size: 22px;
-  line-height: 1.15;
-  letter-spacing: 0.03em;
-  cursor: pointer;
-  color: inherit;
-}
-
 .practice-phrase-speak {
   appearance: none;
   flex: 0 0 auto;
@@ -1936,12 +1913,6 @@ h1 {
 .practice-phrase-speak:focus-visible {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
   outline: none;
-}
-
-.practice-phrase-hanzi:hover,
-.practice-phrase-hanzi:focus-visible {
-  outline: none;
-  filter: brightness(1.05);
 }
 
 .practice-phrase-show {

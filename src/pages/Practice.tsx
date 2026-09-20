@@ -28,6 +28,7 @@ import {
 } from '../lib/homePref'
 import { clearCharProgress, getCharProgress } from '../lib/progress'
 import type { CharProgress } from '../lib/progress'
+import { phraseToPinyin } from '../lib/phrasePinyin'
 import { speakHanzi } from '../lib/speak'
 import { APP_VERSION } from '../version'
 
@@ -88,6 +89,12 @@ export default function Practice() {
   const [phrasesEnabled, setPhrasesEnabledState] = useState(() =>
     getPhrasesEnabled(),
   )
+  /** Active TracePad level cleared? Controls phrase hanzi spoiler. */
+  const [activeLevelCleared, setActiveLevelCleared] = useState(false)
+
+  useEffect(() => {
+    setActiveLevelCleared(false)
+  }, [id])
 
   const progress: CharProgress = entry
     ? (progressByChar[entry.character] ?? getCharProgress(entry.character))
@@ -143,7 +150,6 @@ export default function Practice() {
     return <Navigate to="/" replace />
   }
 
-  const cleared = progress.beaten.length
   const finished = finishedChar === entry.character || allLevelsCleared
 
   const handleWipeChar = () => {
@@ -157,6 +163,7 @@ export default function Practice() {
       [entry.character]: { beaten: [], inkByLevel: {} },
     }))
     setFinishedChar(null)
+    setActiveLevelCleared(false)
     setPadRevision((n) => n + 1)
   }
 
@@ -200,12 +207,6 @@ export default function Practice() {
         <div className="practice-meta practice-meta-compact">
           <p className="practice-meta-left">
             {entry.meaning}
-            {levelCount > 0 && (
-              <>
-                {' '}
-                · {cleared}/{levelCount}
-              </>
-            )}
             {bandLessonMeta && (
               <>
                 {' '}
@@ -263,7 +264,7 @@ export default function Practice() {
                 <div className="practice-phrase-main">
                   <button
                     type="button"
-                    className="practice-phrase-hanzi"
+                    className="practice-phrase-text"
                     lang="zh-Hans"
                     aria-label={`Speak phrase ${entry.phrase}`}
                     title="Speak phrase"
@@ -271,16 +272,23 @@ export default function Practice() {
                       void speakHanzi(entry.phrase!)
                     }}
                   >
-                    {Array.from(entry.phrase).map((ch, i) => (
-                      <span
-                        key={`${ch}-${i}`}
-                        className={`practice-phrase-char${
-                          ch === entry.character ? ' is-current' : ''
-                        }`}
-                      >
-                        {ch}
+                    {activeLevelCleared && (
+                      <span className="practice-phrase-hanzi" aria-hidden="true">
+                        {Array.from(entry.phrase).map((ch, i) => (
+                          <span
+                            key={`${ch}-${i}`}
+                            className={`practice-phrase-char${
+                              ch === entry.character ? ' is-current' : ''
+                            }`}
+                          >
+                            {ch}
+                          </span>
+                        ))}
                       </span>
-                    ))}
+                    )}
+                    <span className="practice-phrase-pinyin">
+                      {phraseToPinyin(entry.phrase)}
+                    </span>
                   </button>
                   <p className="practice-phrase-gloss">{entry.phraseGloss}</p>
                 </div>
@@ -341,6 +349,9 @@ export default function Practice() {
         character={entry.character}
         accent={DEFAULT_ACCENT}
         levelPipsHost={levelPipsHost}
+        onActiveLevelChange={(_level, levelCleared) => {
+          setActiveLevelCleared(levelCleared)
+        }}
         nextCharAction={
           finished && allLevelsCleared ? (
             nextEntry ? (
