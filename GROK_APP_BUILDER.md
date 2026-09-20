@@ -49,6 +49,13 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-20 — Demo/Auto on match Replay solid purple (v0.041)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `index.css`, `version.ts`
+
+- **ON = Replay solid purple:** `.trace-pair-btn.is-on` (Demo on) and `.dock-btn.is-on` (Auto sound / Guide / My ink) now use the same solid accent recipe as `.trace-pair-btn.is-accent` (Replay): mixed purple fill, white text, soft shadow, brightness hover. Off states stay faint (~0.62). Auto next clear-bar left alone.
+
 ### 2026-09-20 — Consistent toggles; auto-next to next character (v0.040)
 
 **Who:** gold-hanzi (repo Grok)  
