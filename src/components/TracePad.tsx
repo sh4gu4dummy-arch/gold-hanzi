@@ -1,5 +1,12 @@
 import HanziWriter from 'hanzi-writer'
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react'
 import { createPortal } from 'react-dom'
 import {
   STROKE_DATA,
@@ -51,6 +58,47 @@ export const DONE_STROKE_GREEN = '#22A06B'
 const GUIDE_ANIM_SPEED = 0.45
 const GUIDE_HIGHLIGHT_SPEED = 0.5
 const AUTO_ADVANCE_MS = 1000
+/** Slightly longer hold on last-level clear so char-celebrate can read before next char. */
+const CHAR_CLEAR_AUTO_ADVANCE_MS = 1200
+const CHAR_CELEBRATE_FADE_MS = 200
+const CHAR_CELEBRATE_AUTO_DISMISS_MS = 2000
+
+type CelebrateDot = {
+  id: number
+  dx: string
+  dy: string
+  color: string
+  size: number
+  delay: number
+  duration: number
+}
+
+type CharCelebrate = {
+  dots: CelebrateDot[]
+  fading: boolean
+}
+
+const CELEBRATE_COLORS = ['#22a06b', '#3dcf8e', '#a78bfa', '#c4b5fd', '#9b7fd4']
+
+function makeCelebrateDots(): CelebrateDot[] {
+  const n = 12 + Math.floor(Math.random() * 7) // 12–18
+  const dots: CelebrateDot[] = []
+  for (let i = 0; i < n; i++) {
+    const angle = (Math.PI * 2 * i) / n + (Math.random() - 0.5) * 0.45
+    const dist = 22 + Math.random() * 38 // % of pad
+    dots.push({
+      id: i,
+      dx: `${(Math.cos(angle) * dist).toFixed(1)}%`,
+      dy: `${(Math.sin(angle) * dist).toFixed(1)}%`,
+      color: CELEBRATE_COLORS[i % CELEBRATE_COLORS.length]!,
+      size: 4 + Math.random() * 4,
+      delay: Math.random() * 50,
+      duration: 400 + Math.random() * 100,
+    })
+  }
+  return dots
+}
+
 
 type TracePadProps = {
   character: string
@@ -733,6 +781,10 @@ export default function TracePad({
   const [voiceNote, setVoiceNote] = useState<string | null>(null)
   /** Short pad toast: “try again” (paint-cap) or “do stroke X first”. */
   const [padToast, setPadToast] = useState<string | null>(null)
+  const [charCelebrate, setCharCelebrate] = useState<CharCelebrate | null>(null)
+  const celebrateFadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const celebrateAutoDismissRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   /** Completed pen gestures (pen-down→up) this writing attempt — for Undo. */
   const gestureStackRef = useRef<InkSnapshot[]>([])
   const [gestureCount, setGestureCount] = useState(0)
@@ -768,10 +820,63 @@ export default function TracePad({
   // Cancel in-flight TTS when leaving this character.
   useEffect(() => {
     setVoiceNote(null)
+    setCharCelebrate(null)
+    if (celebrateFadeTimerRef.current != null) {
+      clearTimeout(celebrateFadeTimerRef.current)
+      celebrateFadeTimerRef.current = null
+    }
+    if (celebrateAutoDismissRef.current != null) {
+      clearTimeout(celebrateAutoDismissRef.current)
+      celebrateAutoDismissRef.current = null
+    }
     return () => {
       cancelSpeech()
     }
   }, [character])
+
+  const dismissCharCelebrate = useCallback(() => {
+    setCharCelebrate((prev) => {
+      if (!prev || prev.fading) return prev
+      return { ...prev, fading: true }
+    })
+  }, [])
+
+  // Finish fade-out → unmount celebrate overlay.
+  useEffect(() => {
+    if (!charCelebrate?.fading) return
+    if (celebrateFadeTimerRef.current != null) {
+      clearTimeout(celebrateFadeTimerRef.current)
+    }
+    celebrateFadeTimerRef.current = setTimeout(() => {
+      celebrateFadeTimerRef.current = null
+      setCharCelebrate(null)
+    }, CHAR_CELEBRATE_FADE_MS)
+    return () => {
+      if (celebrateFadeTimerRef.current != null) {
+        clearTimeout(celebrateFadeTimerRef.current)
+        celebrateFadeTimerRef.current = null
+      }
+    }
+  }, [charCelebrate?.fading])
+
+  // Auto next ON: soft-dismiss celebrate ~2s (advance usually leaves sooner).
+  useEffect(() => {
+    if (!charCelebrate || charCelebrate.fading) return
+    if (!autoNextLevel) return
+    if (celebrateAutoDismissRef.current != null) {
+      clearTimeout(celebrateAutoDismissRef.current)
+    }
+    celebrateAutoDismissRef.current = setTimeout(() => {
+      celebrateAutoDismissRef.current = null
+      dismissCharCelebrate()
+    }, CHAR_CELEBRATE_AUTO_DISMISS_MS)
+    return () => {
+      if (celebrateAutoDismissRef.current != null) {
+        clearTimeout(celebrateAutoDismissRef.current)
+        celebrateAutoDismissRef.current = null
+      }
+    }
+  }, [charCelebrate, autoNextLevel, dismissCharCelebrate])
 
   const clearAutoAdvance = useCallback(() => {
     if (autoAdvanceTimerRef.current != null) {
@@ -1219,12 +1324,14 @@ export default function TracePad({
     if (!autoNextLevelRef.current) return
     const passedLevel = levelRef.current
     const total = levelCountRef.current
+    const nextLevel = passedLevel + 1
+    const delay =
+      nextLevel > total ? CHAR_CLEAR_AUTO_ADVANCE_MS : AUTO_ADVANCE_MS
     autoAdvanceTimerRef.current = setTimeout(() => {
       autoAdvanceTimerRef.current = null
       if (!autoNextLevelRef.current) return
-      const nextLevel = passedLevel + 1
       if (nextLevel > total) {
-        // Last level cleared → next character (same delay).
+        // Last level cleared → next character (celebrate hold).
         onAutoNextCharacterRef.current?.()
         return
       }
@@ -1240,7 +1347,7 @@ export default function TracePad({
         doneRef.current = false
         void runDemoThenWriteRef.current?.(nextLevel)
       }
-    }, AUTO_ADVANCE_MS)
+    }, delay)
   }, [character, clearAutoAdvance, enterReviewMode])
 
   const finishPass = useCallback(() => {
@@ -1274,6 +1381,7 @@ export default function TracePad({
     void maybeSpeak()
     if (beaten.beaten.length >= levelCountRef.current) {
       onDone?.()
+      setCharCelebrate({ dots: makeCelebrateDots(), fading: false })
     }
 
     scheduleAutoAdvanceFromPassed()
@@ -2246,6 +2354,60 @@ export default function TracePad({
             {loadError && (
               <div className="trace-error" role="alert">
                 {loadError}
+              </div>
+            )}
+            {charCelebrate && (
+              <div
+                className={`trace-char-celebrate${charCelebrate.fading ? ' is-fading' : ''}`}
+                aria-live="polite"
+              >
+                <div className="trace-char-celebrate-confetti" aria-hidden="true">
+                  {charCelebrate.dots.map((d) => (
+                    <span
+                      key={d.id}
+                      className="trace-char-celebrate-dot"
+                      style={
+                        {
+                          '--dx': d.dx,
+                          '--dy': d.dy,
+                          '--dot-color': d.color,
+                          '--dot-size': `${d.size}px`,
+                          '--dot-delay': `${d.delay}ms`,
+                          '--dot-dur': `${d.duration}ms`,
+                        } as CSSProperties
+                      }
+                    />
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="trace-char-celebrate-check"
+                  onClick={dismissCharCelebrate}
+                  aria-label={`${character} cleared, dismiss celebration`}
+                >
+                  <span aria-hidden="true">✓</span>
+                </button>
+                <div
+                  className="trace-char-celebrate-toast"
+                  role="status"
+                  onClick={dismissCharCelebrate}
+                >
+                  <span className="trace-char-celebrate-toast-mark" aria-hidden="true">
+                    ✓
+                  </span>
+                  <span>{character} cleared</span>
+                  <button
+                    type="button"
+                    className="trace-char-celebrate-toast-x"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      dismissCharCelebrate()
+                    }}
+                    aria-label="Dismiss"
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
             )}
             {phase === 'passed' && (

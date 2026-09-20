@@ -49,6 +49,15 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-20 — Subtle char-clear celebrate (v0.044)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `TracePad.tsx`, `index.css`, `version.ts`
+
+- **Whole-character clear only:** soft confetti (~12–18 green/purple dots) + centered green check + `{char} cleared` toast chip on the pad when the last level is beaten — not on mid-character level clears.
+- Overlay inside `.trace-stage` (z below clear bar); dismiss via check / toast / × (~200ms fade). Auto next ON: show ~1.2s then advance (`CHAR_CLEAR_AUTO_ADVANCE_MS`); toast soft-dismiss ~2s. Auto next OFF: stays until dismiss. Leaving the character clears it. No new sound.
+
+
 ### 2026-09-20 — Draft A: Demo/Replay + strokes outside pad (v0.043)
 
 **Who:** gold-hanzi (repo Grok)  
