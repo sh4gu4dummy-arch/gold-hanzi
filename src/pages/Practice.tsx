@@ -82,7 +82,7 @@ export default function Practice() {
   >({})
   const [finishedChar, setFinishedChar] = useState<string | null>(null)
   const [padRevision, setPadRevision] = useState(0)
-  /** Host for TracePad level-pip strip (ported under big pinyin). */
+  /** Host for TracePad Demo/Replay + level-pip strip. */
   const [levelPipsHost, setLevelPipsHost] = useState<HTMLElement | null>(null)
   const [showSoundTip, setShowSoundTip] = useState(() => !getSoundTipSeen())
   const [phraseOpen, setPhraseOpen] = useState(() => getPhrasePanelOpen())
@@ -182,17 +182,26 @@ export default function Practice() {
             </span>
             <span className="practice-home-label">Home</span>
           </Link>
-          <div className="practice-pinyin-row">
-            <span className="practice-pinyin">{entry.pinyin}</span>
-            <button
-              type="button"
-              className="practice-speak-btn"
-              onClick={handleSpeak}
-              title="Replay pronunciation"
-              aria-label={`Speak ${entry.character}, ${entry.pinyin}`}
-            >
-              <span aria-hidden="true">🔊</span>
-            </button>
+          <div className="practice-meta practice-meta-compact practice-meta-inline">
+            <p className="practice-meta-left" title={entry.meaning}>
+              {bandLessonMeta ? (
+                <>
+                  L{bandLessonMeta.lessonNumber}{' '}
+                  {bandLessonMeta.lessonCleared}/{bandLessonMeta.lessonTotal}
+                </>
+              ) : (
+                entry.meaning
+              )}
+            </p>
+            {bandLessonMeta && (
+              <p
+                className="practice-meta-right"
+                title={`${bandLessonMeta.bandLabel}: ${bandLessonMeta.bandCleared}/${bandLessonMeta.bandTotal} chars cleared`}
+              >
+                {bandLessonMeta.bandLabel} {bandLessonMeta.bandCleared}/
+                {bandLessonMeta.bandTotal}
+              </p>
+            )}
           </div>
           <div className="practice-bar-actions">
             <span
@@ -203,27 +212,6 @@ export default function Practice() {
             </span>
             <ThemeToggle />
           </div>
-        </div>
-        <div className="practice-meta practice-meta-compact">
-          <p className="practice-meta-left">
-            {entry.meaning}
-            {bandLessonMeta && (
-              <>
-                {' '}
-                · L{bandLessonMeta.lessonNumber}{' '}
-                {bandLessonMeta.lessonCleared}/{bandLessonMeta.lessonTotal}
-              </>
-            )}
-          </p>
-          {bandLessonMeta && (
-            <p
-              className="practice-meta-right"
-              title={`${bandLessonMeta.bandLabel}: ${bandLessonMeta.bandCleared}/${bandLessonMeta.bandTotal} chars cleared`}
-            >
-              {bandLessonMeta.bandLabel} {bandLessonMeta.bandCleared}/
-              {bandLessonMeta.bandTotal}
-            </p>
-          )}
         </div>
 
         {phrasesEnabled && entry.phrase && entry.phraseGloss && (
@@ -342,6 +330,18 @@ export default function Practice() {
           className="practice-level-pips-slot"
           ref={setLevelPipsHost}
         />
+        <div className="practice-pinyin-row practice-pinyin-below">
+          <span className="practice-pinyin">{entry.pinyin}</span>
+          <button
+            type="button"
+            className="practice-speak-btn"
+            onClick={handleSpeak}
+            title="Replay pronunciation"
+            aria-label={`Speak ${entry.character}, ${entry.pinyin}`}
+          >
+            <span aria-hidden="true">🔊</span>
+          </button>
+        </div>
       </header>
 
       <TracePad

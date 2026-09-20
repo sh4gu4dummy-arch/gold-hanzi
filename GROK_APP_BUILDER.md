@@ -49,6 +49,16 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-20 — Practice layout: top progress, Demo with levels, large pinyin (v0.034)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `Practice.tsx`, `TracePad.tsx`, `index.css`, `version.ts`
+
+- **Top progress:** L1 x/y (left) and HSK band a/b (right) sit on the **same row as Home** / version / theme (compact inline meta).
+- **Demo + Replay/Skip:** moved onto the **level-number row**, left; level circles scoot right.
+- **Large pinyin (~2×):** under level numbers, above the tracing grid; character 🔊 speak lives there (not on the Home row). Phrase spoiler rules from v0.033 unchanged.
+
+
 ### 2026-09-20 — Phrase pinyin until clear; drop level chrome (v0.033)
 
 **Who:** gold-hanzi (repo Grok)  

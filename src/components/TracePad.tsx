@@ -57,9 +57,8 @@ type TracePadProps = {
   /** Fires when the active practice level or its cleared state changes. */
   onActiveLevelChange?: (level: number, levelCleared: boolean) => void
   /**
-   * Optional host element (Practice header under top-bar pinyin).
-   * When set, the level-pip strip is portaled there instead of under
-   * the Levels progress chrome inside this pad.
+   * Optional host element (Practice: above large pinyin / grid).
+   * When set, Demo/Replay + level-pip strip are portaled there.
    */
   levelPipsHost?: HTMLElement | null
   /**
@@ -1966,11 +1965,45 @@ export default function TracePad({
         ? 'Final memory: draw every stroke with no guide.'
         : `Memory: strokes 1–${level - 1} are hidden; later strokes still show a guide.`
 
-  const levelPipsStrip: ReactNode = (
+  const demoReplayControls: ReactNode = (
     <div
-      className={`level-pips-wrap${pipsOverflow ? ' is-overflow' : ''}`}
-      aria-label={`Levels beaten: ${beatenSet.size} of ${levelCount}`}
+      className="trace-stage-pair"
+      role="group"
+      aria-label="Demo and skip controls"
     >
+      <button
+        type="button"
+        className={`trace-pair-btn${demoEnabled ? ' is-on' : ''}`}
+        onClick={toggleDemoEnabled}
+        aria-pressed={demoEnabled}
+        aria-label={demoEnabled ? 'Demo on' : 'Demo off'}
+        title="Animated stroke-order demo"
+      >
+        <span aria-hidden="true">{demoEnabled ? '▶' : '⏸'}</span>
+        <span>Demo</span>
+      </button>
+      {(phase === 'demo' || phase === 'writing' || phase === 'passed') && (
+        <button
+          type="button"
+          className="trace-pair-btn is-accent"
+          onClick={phase === 'demo' ? skipGuide : replayGuide}
+          disabled={!!loadError}
+          aria-label={phase === 'demo' ? 'Skip demo' : 'Replay'}
+          title={phase === 'demo' ? 'Skip demo' : 'Replay'}
+        >
+          {phase === 'demo' ? 'Skip' : 'Replay'}
+        </button>
+      )}
+    </div>
+  )
+
+  const levelPipsStrip: ReactNode = (
+    <div className="level-pips-row">
+      {demoReplayControls}
+      <div
+        className={`level-pips-wrap${pipsOverflow ? ' is-overflow' : ''}`}
+        aria-label={`Levels beaten: ${beatenSet.size} of ${levelCount}`}
+      >
       <button
         type="button"
         className="level-pips-arrow"
@@ -2056,6 +2089,7 @@ export default function TracePad({
       >
         ›
       </button>
+      </div>
     </div>
   )
 
@@ -2082,39 +2116,9 @@ export default function TracePad({
 
       {levelPipsHost
         ? createPortal(levelPipsStrip, levelPipsHost)
-        : null}
+        : levelPipsStrip}
 
       <div className="trace-stage-block">
-        <div
-          className="trace-stage-pair"
-          role="group"
-          aria-label="Demo and skip controls"
-        >
-          <button
-            type="button"
-            className={`trace-pair-btn${demoEnabled ? ' is-on' : ''}`}
-            onClick={toggleDemoEnabled}
-            aria-pressed={demoEnabled}
-            aria-label={demoEnabled ? 'Demo on' : 'Demo off'}
-            title="Animated stroke-order demo"
-          >
-            <span aria-hidden="true">{demoEnabled ? '▶' : '⏸'}</span>
-            <span>Demo</span>
-          </button>
-          {(phase === 'demo' || phase === 'writing' || phase === 'passed') && (
-            <button
-              type="button"
-              className="trace-pair-btn is-accent"
-              onClick={phase === 'demo' ? skipGuide : replayGuide}
-              disabled={!!loadError}
-              aria-label={phase === 'demo' ? 'Skip demo' : 'Replay'}
-              title={phase === 'demo' ? 'Skip demo' : 'Replay'}
-            >
-              {phase === 'demo' ? 'Skip' : 'Replay'}
-            </button>
-          )}
-        </div>
-
         <div className="trace-stage-slot">
           <div
             ref={wrapRef}
