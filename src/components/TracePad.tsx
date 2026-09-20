@@ -35,6 +35,10 @@ import {
 } from '../lib/progress'
 import type { CharProgress } from '../lib/progress'
 import { getDemoEnabled, setDemoEnabled } from '../lib/demoPref'
+import {
+  getAutoNextLevel,
+  setAutoNextLevel,
+} from '../lib/autoNextPref'
 import { getSoundEnabled, setSoundEnabled } from '../lib/soundPref'
 import { cancelSpeech, speakHanzi } from '../lib/speak'
 import type { SpeakResult } from '../lib/speak'
@@ -651,6 +655,7 @@ export default function TracePad({
   const strokeBaselineRef = useRef<InkSnapshot | null>(null)
   const tryAgainTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const demoEnabledRef = useRef(getDemoEnabled())
+  const autoNextLevelRef = useRef(getAutoNextLevel())
   /** When set, demo/skip restores writing/passed progress instead of wiping. */
   const demoKeepProgressRef = useRef<{
     returnPhase: 'writing' | 'passed'
@@ -713,6 +718,9 @@ export default function TracePad({
   /** false (default): guides on, hide completed hand ink. true: ink only. */
   const [showMyStrokes, setShowMyStrokes] = useState(false)
   const [demoEnabled, setDemoEnabledState] = useState(() => getDemoEnabled())
+  const [autoNextLevel, setAutoNextLevelState] = useState(() =>
+    getAutoNextLevel(),
+  )
   const [soundEnabled, setSoundEnabledState] = useState(() => getSoundEnabled())
   const [voiceNote, setVoiceNote] = useState<string | null>(null)
   /** Short pad toast: “try again” (paint-cap) or “do stroke X first”. */
@@ -724,6 +732,7 @@ export default function TracePad({
   levelRef.current = level
   showMyStrokesRef.current = showMyStrokes
   demoEnabledRef.current = demoEnabled
+  autoNextLevelRef.current = autoNextLevel
 
   /** Apply speak result: clear note on success; only warn when speak truly fails. */
   const applySpeakResult = useCallback((result: SpeakResult) => {
@@ -1228,6 +1237,7 @@ export default function TracePad({
     }
 
     clearAutoAdvance()
+    if (!autoNextLevelRef.current) return
     const passedLevel = levelRef.current
     const total = levelCountRef.current
     autoAdvanceTimerRef.current = setTimeout(() => {
@@ -1676,12 +1686,6 @@ export default function TracePad({
     applyInkSnapshot(prev)
   }
 
-  const goNextLevel = () => {
-    clearAutoAdvance()
-    selectLevel(level + 1)
-  }
-
-
   useEffect(() => {
     return () => {
       if (tryAgainTimerRef.current) {
@@ -1904,6 +1908,14 @@ export default function TracePad({
     demoEnabledRef.current = next
   }
 
+  const toggleAutoNextLevel = () => {
+    const next = !autoNextLevelRef.current
+    setAutoNextLevel(next)
+    setAutoNextLevelState(next)
+    autoNextLevelRef.current = next
+    if (!next) clearAutoAdvance()
+  }
+
   const toggleSoundEnabled = () => {
     const next = !soundEnabled
     setSoundEnabled(next)
@@ -2032,11 +2044,11 @@ export default function TracePad({
         className={`trace-pair-btn${demoEnabled ? ' is-on' : ''}`}
         onClick={toggleDemoEnabled}
         aria-pressed={demoEnabled}
-        aria-label={demoEnabled ? 'Show demo' : 'Demo off'}
+        aria-label={demoEnabled ? 'Demo on' : 'Demo off'}
         title="Animated stroke-order demo"
       >
         <span aria-hidden="true">{demoEnabled ? '▶' : '⏸'}</span>
-        <span>{demoEnabled ? 'Show demo' : 'Demo off'}</span>
+        <span>{demoEnabled ? 'Demo on' : 'Demo off'}</span>
       </button>
       {(phase === 'demo' || phase === 'writing' || phase === 'passed') && (
         <button
@@ -2231,11 +2243,24 @@ export default function TracePad({
                   {level < levelCount ? (
                     <button
                       type="button"
-                      className="trace-clear-bar-next"
-                      onClick={goNextLevel}
-                      disabled={!isLevelUnlocked(character, level + 1)}
+                      className={`trace-clear-bar-next trace-clear-bar-auto${
+                        autoNextLevel ? ' is-on' : ''
+                      }`}
+                      onClick={toggleAutoNextLevel}
+                      aria-pressed={autoNextLevel}
+                      aria-label={
+                        autoNextLevel ? 'Auto next level on' : 'Auto next level off'
+                      }
+                      title={
+                        autoNextLevel
+                          ? 'Auto-advance to next level after clear'
+                          : 'Stay on this level after clear'
+                      }
                     >
-                      Next level
+                      <span aria-hidden="true">{autoNextLevel ? '▶' : '⏸'}</span>
+                      <span>
+                        {autoNextLevel ? 'Auto next on' : 'Auto next off'}
+                      </span>
                     </button>
                   ) : (
                     nextCharAction

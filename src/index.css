@@ -396,12 +396,14 @@ h1 {
   font-weight: 700;
   letter-spacing: 0.02em;
   color: var(--accent);
-  line-height: 1.05;
+  /* Was 1.05 + overflow:hidden — clipped descenders on q/y/p/g/j */
+  line-height: 1.35;
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+  padding-block: 0.06em;
 }
 
 .practice-speak-btn {
@@ -1125,6 +1127,18 @@ h1 {
   opacity: 0.45;
   cursor: not-allowed;
   filter: none;
+}
+
+/* Auto-next toggle on clear bar: on = highlighted like other toggles */
+.trace-clear-bar-auto {
+  opacity: 0.72;
+  font-weight: 600;
+}
+
+.trace-clear-bar-auto.is-on {
+  opacity: 1;
+  font-weight: 800;
+  background: color-mix(in srgb, white 18%, transparent);
 }
 
 .trace-clear-bar-right > .next-caught-up {

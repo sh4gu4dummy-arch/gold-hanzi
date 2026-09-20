@@ -157,11 +157,15 @@ export default function Practice() {
     if (!loc) return null
     const lessonChars = bandProgress(loc.lesson.entries)
     const bandChars = bandProgress(loc.band.entries)
+    const bandName =
+      view === 'classic'
+        ? `HSK band ${loc.band.level}`
+        : `HSK 3.0 band ${loc.band.level}`
     return {
       lessonNumber: loc.lessonNumber,
       lessonCleared: lessonChars.cleared,
       lessonTotal: lessonChars.total,
-      bandLabel: loc.band.label,
+      bandLabel: bandName,
       bandCleared: bandChars.cleared,
       bandTotal: bandChars.total,
     }
@@ -229,7 +233,7 @@ export default function Practice() {
             <p className="practice-meta-left" title={entry.meaning}>
               {bandLessonMeta ? (
                 <>
-                  L{bandLessonMeta.lessonNumber}{' '}
+                  Lesson {bandLessonMeta.lessonNumber} –{' '}
                   {bandLessonMeta.lessonCleared}/{bandLessonMeta.lessonTotal}
                 </>
               ) : (
@@ -241,7 +245,7 @@ export default function Practice() {
                 className="practice-meta-right"
                 title={`${bandLessonMeta.bandLabel}: ${bandLessonMeta.bandCleared}/${bandLessonMeta.bandTotal} chars cleared`}
               >
-                {bandLessonMeta.bandLabel} {bandLessonMeta.bandCleared}/
+                {bandLessonMeta.bandLabel} – {bandLessonMeta.bandCleared}/
                 {bandLessonMeta.bandTotal}
               </p>
             )}

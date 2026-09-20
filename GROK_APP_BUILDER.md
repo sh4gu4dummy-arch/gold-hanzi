@@ -49,6 +49,17 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-20 — Demo on, auto-next, pinyin clip, labels, phrase polish (v0.039)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `TracePad.tsx`, `Practice.tsx`, `autoNextPref.ts`, `index.css`, `characters.json`, `version.ts`
+
+- **Demo on:** when enabled, toggle uses highlighted `is-on` + ▶ and label **Demo on** (off stays faint ⏸ **Demo off**).
+- **Auto next level:** clear-bar **Next level** replaced by on/off auto-progress toggle (localStorage `chinese-trace:auto-next-level:v1`, default on). On = after clear, auto-advance to next level; off = stay. Last level still shows **Next character** as a normal button (not a toggle).
+- **Pinyin clip:** `.practice-pinyin` line-height raised (1.05 → 1.35) so descenders on q/y/p/g/j are not clipped under `overflow: hidden`.
+- **Progress labels:** spelled-out `Lesson N – a/b` and `HSK band N – a/b` (HSK 3.0: `HSK 3.0 band N – a/b`).
+- **Phrase polish (selective):** 22 obscure/unnatural phrases swapped for everyday HSK/frequency compounds (e.g. 藏 矿藏→收藏, 趴 淫趴→趴下, 县 坡县→县城); kept good ones (你好、中国、什么…).
+
 ### 2026-09-20 — Split clear bar, lower pinyin, drop white stroke line (v0.038)
 
 **Who:** gold-hanzi (repo Grok)  
