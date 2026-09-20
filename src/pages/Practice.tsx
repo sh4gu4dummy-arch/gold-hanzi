@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link, Navigate, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import ThemeToggle from '../components/ThemeToggle'
 import TracePad, { DEFAULT_ACCENT } from '../components/TracePad'
 import {
@@ -41,6 +41,7 @@ import { APP_VERSION } from '../version'
 
 export default function Practice() {
   const { id = '' } = useParams()
+  const navigate = useNavigate()
   const [entry, setEntry] = useState<CharacterEntry | undefined>(() =>
     getCharacter(id),
   )
@@ -148,6 +149,9 @@ export default function Practice() {
     if (!entry) return null
     return nextUnlockedEntry(entry.id, ordered, getDifficultyMode())
   }, [entry, ordered, progress.beaten.length, finishedChar])
+
+  const nextEntryIdRef = useRef<string | null>(null)
+  nextEntryIdRef.current = nextEntry?.id ?? null
 
   /** Current character's HSK band/lesson completion (Home accordion metrics). */
   const bandLessonMeta = useMemo(() => {
@@ -417,6 +421,10 @@ export default function Practice() {
             )
           ) : null
         }
+        onAutoNextCharacter={() => {
+          const nextId = nextEntryIdRef.current
+          if (nextId) navigate(`/practice/${nextId}`)
+        }}
         onDone={() => setFinishedChar(entry.character)}
         onProgressChange={(nextProgress) =>
           setProgressByChar((prev) => ({

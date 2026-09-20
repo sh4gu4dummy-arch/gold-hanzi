@@ -615,17 +615,22 @@ h1 {
 }
 
 .dock-btn.is-on {
-  color: var(--accent);
+  color: var(--accent-ink);
   border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
   background: var(--accent-soft);
+  opacity: 1;
+  font-weight: 800;
 }
 
-.dock-btn-sound {
-  color: color-mix(in srgb, var(--text) 72%, var(--muted));
+/* Practice toggles (Guide/My ink, Auto sound): match Demo off shading. */
+.dock-btn[aria-pressed='false'] {
+  opacity: 0.62;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--muted) 88%, var(--text));
 }
 
-.dock-btn-sound.is-on {
-  color: var(--accent);
+.dock-btn[aria-pressed='true'] {
+  opacity: 1;
 }
 
 .dock-btn-sound-icon {
@@ -652,16 +657,6 @@ h1 {
   display: block;
   width: 1em;
   height: 1em;
-}
-
-[data-theme='dark'] .dock-btn-sound {
-  color: #d7ccec;
-}
-
-[data-theme='dark'] .dock-btn-sound.is-on {
-  color: #e8ddff;
-  border-color: color-mix(in srgb, var(--accent) 70%, var(--line));
-  background: color-mix(in srgb, var(--accent) 32%, var(--surface));
 }
 
 .dock-btn:disabled {
@@ -870,6 +865,7 @@ h1 {
   border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
   background: var(--accent-soft);
   font-weight: 800;
+  opacity: 1;
 }
 
 /* Demo off (and other non-accent pair toggles): fainter than is-on. */
@@ -1129,9 +1125,9 @@ h1 {
   filter: none;
 }
 
-/* Auto-next toggle on clear bar: on = highlighted like other toggles */
+/* Auto-next toggle: same on/off opacity language as Demo / dock toggles */
 .trace-clear-bar-auto {
-  opacity: 0.72;
+  opacity: 0.62;
   font-weight: 600;
 }
 

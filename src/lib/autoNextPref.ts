@@ -1,4 +1,4 @@
-/** Persist auto-advance to next level after clear. Default: on. */
+/** Persist auto-advance after clear (next level, or next character on last). Default: on. */
 
 export const AUTO_NEXT_STORAGE_KEY = 'chinese-trace:auto-next-level:v1'
 

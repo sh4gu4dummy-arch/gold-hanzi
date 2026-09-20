@@ -66,9 +66,14 @@ type TracePadProps = {
   levelPipsHost?: HTMLElement | null
   /**
    * Optional CTA for the post-clear bar right half when no more levels
-   * remain (e.g. Next character / All caught up).
+   * remain and Auto next is off (e.g. Next character / All caught up).
    */
   nextCharAction?: ReactNode
+  /**
+   * When Auto next is on and the last level clears, called after the same
+   * delay as level auto-advance (Practice: navigate to next character).
+   */
+  onAutoNextCharacter?: () => void
 }
 
 type Phase = 'loading' | 'demo' | 'writing' | 'passed'
@@ -623,6 +628,7 @@ export default function TracePad({
   onActiveLevelChange,
   levelPipsHost = null,
   nextCharAction = null,
+  onAutoNextCharacter,
 }: TracePadProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const writerHostRef = useRef<HTMLDivElement>(null)
@@ -656,6 +662,7 @@ export default function TracePad({
   const tryAgainTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const demoEnabledRef = useRef(getDemoEnabled())
   const autoNextLevelRef = useRef(getAutoNextLevel())
+  const onAutoNextCharacterRef = useRef(onAutoNextCharacter)
   /** When set, demo/skip restores writing/passed progress instead of wiping. */
   const demoKeepProgressRef = useRef<{
     returnPhase: 'writing' | 'passed'
@@ -733,6 +740,7 @@ export default function TracePad({
   showMyStrokesRef.current = showMyStrokes
   demoEnabledRef.current = demoEnabled
   autoNextLevelRef.current = autoNextLevel
+  onAutoNextCharacterRef.current = onAutoNextCharacter
 
   /** Apply speak result: clear note on success; only warn when speak truly fails. */
   const applySpeakResult = useCallback((result: SpeakResult) => {
@@ -1242,8 +1250,13 @@ export default function TracePad({
     const total = levelCountRef.current
     autoAdvanceTimerRef.current = setTimeout(() => {
       autoAdvanceTimerRef.current = null
+      if (!autoNextLevelRef.current) return
       const nextLevel = passedLevel + 1
-      if (nextLevel > total) return
+      if (nextLevel > total) {
+        // Last level cleared → next character (same delay).
+        onAutoNextCharacterRef.current?.()
+        return
+      }
       if (!isLevelUnlocked(character, nextLevel)) return
       // Unbeaten next → demo+write; beaten next → review (rare).
       if (isLevelBeaten(character, nextLevel)) {
@@ -2240,7 +2253,7 @@ export default function TracePad({
                   <span>Level {level} completed</span>
                 </button>
                 <div className="trace-clear-bar-right">
-                  {level < levelCount ? (
+                  {level < levelCount || autoNextLevel ? (
                     <button
                       type="button"
                       className={`trace-clear-bar-next trace-clear-bar-auto${
@@ -2249,12 +2262,12 @@ export default function TracePad({
                       onClick={toggleAutoNextLevel}
                       aria-pressed={autoNextLevel}
                       aria-label={
-                        autoNextLevel ? 'Auto next level on' : 'Auto next level off'
+                        autoNextLevel ? 'Auto next on' : 'Auto next off'
                       }
                       title={
                         autoNextLevel
-                          ? 'Auto-advance to next level after clear'
-                          : 'Stay on this level after clear'
+                          ? 'Auto-advance to next level or next character after clear'
+                          : 'Stay put after clear'
                       }
                     >
                       <span aria-hidden="true">{autoNextLevel ? '▶' : '⏸'}</span>

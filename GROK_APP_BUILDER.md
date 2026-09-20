@@ -49,6 +49,14 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-20 — Consistent toggles; auto-next to next character (v0.040)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `TracePad.tsx`, `Practice.tsx`, `index.css`, `autoNextPref.ts`, `version.ts`
+
+- **Toggle shading:** Demo, Guide/My ink, Auto sound, and Auto next share the same on/off language — off ≈ 0.62 opacity + muted weight; on = accent-ink + accent-soft + weight 800 / opacity 1. Dropped Auto sound’s special light/dark color overrides.
+- **Auto next → next character:** with Auto next on, clearing the **last** level auto-navigates to the next unlocked character after the same 1s delay as level advance; mid-character still advances levels. Auto next off stays put (last level still shows **Next character** when auto is off).
+
 ### 2026-09-20 — Demo on, auto-next, pinyin clip, labels, phrase polish (v0.039)
 
 **Who:** gold-hanzi (repo Grok)  
