@@ -49,6 +49,15 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-20 — Pinyin size, Demo labels, replay keeps strokes (v0.036)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `TracePad.tsx`, `index.css`, `version.ts`
+
+- **Pinyin:** slightly lower under level row; larger clamp (mobile-first).
+- **Demo toggle:** On = **Show demo** + `is-on`/bold; Off = ⏸ + fainter **Demo off**.
+- **Replay:** animates stroke-order only; preserves ink mask, green guides, and grade/`strokeDone` for the current attempt (Skip during that replay restores the same). Fresh level entry via `runDemoThenWrite` still resets.
+
 ### 2026-09-20 — Guide/My ink, practice resume, Noto Sans pinyin (v0.035)
 
 **Who:** gold-hanzi (repo Grok)  

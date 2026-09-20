@@ -27,7 +27,6 @@ import {
 } from '../lib/grading'
 import type { GradeStatus, LetterMask } from '../lib/grading'
 import {
-  clearLevelInk,
   getCharProgress,
   getLevelInk,
   isLevelBeaten,
@@ -672,6 +671,14 @@ export default function TracePad({
   const strokeBaselineRef = useRef<InkSnapshot | null>(null)
   const tryAgainTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const demoEnabledRef = useRef(getDemoEnabled())
+  /** When set, demo/skip restores writing/passed progress instead of wiping. */
+  const demoKeepProgressRef = useRef<{
+    returnPhase: 'writing' | 'passed'
+    liveGrade: GradeStatus | null
+    done: boolean
+    prev: boolean[] | null
+    last: boolean[] | null
+  } | null>(null)
 
   const [strokeData, setStrokeData] = useState<StrokeCharacterData | undefined>(
     () => STROKE_DATA[character] ?? getStrokeData(character),
@@ -1324,6 +1331,7 @@ export default function TracePad({
 
       void maybeSpeak()
       clearAutoAdvance()
+      demoKeepProgressRef.current = null
       doneRef.current = false
       setLiveGrade(null)
       setLoadError(null)
@@ -1536,8 +1544,13 @@ export default function TracePad({
           clearCanvasPixels(inkCanvasRef.current)
         }
       } else if (phase === 'demo' || phase === 'loading') {
-        // Ensure guide host dimensions stay in sync as layout settles.
-        if (!showMyStrokesRef.current && strokeData) {
+        // Fresh demo: paint default guide under writer. Keep-progress replay:
+        // leave green guides / ink alone so completed strokes survive.
+        if (
+          !demoKeepProgressRef.current &&
+          !showMyStrokesRef.current &&
+          strokeData
+        ) {
           paintGuide(levelRef.current, null)
         }
       }
@@ -1576,6 +1589,24 @@ export default function TracePad({
     void runDemoThenWrite(nextLevel)
   }
 
+  const restoreAfterKeepProgressDemo = () => {
+    const keep = demoKeepProgressRef.current
+    demoKeepProgressRef.current = null
+    hideWriterHost()
+    if (!keep) return
+    doneRef.current = keep.done
+    prevStrokeDoneRef.current = keep.prev
+    lastStrokeDoneRef.current = keep.last
+    setLiveGrade(keep.liveGrade)
+    setPhase(keep.returnPhase)
+    if (showMyStrokesRef.current) {
+      clearGuideCanvas(guideCanvasRef.current)
+      blitStoreToVisible()
+    } else {
+      paintGuide(levelRef.current, keep.last ?? keep.prev)
+    }
+  }
+
   const skipGuide = () => {
     if (phase !== 'demo') return
     const session = ++sessionRef.current
@@ -1587,20 +1618,65 @@ export default function TracePad({
     } catch {
       /* ignore */
     }
+    if (demoKeepProgressRef.current) {
+      restoreAfterKeepProgressDemo()
+      return
+    }
     void enterWritingAfterDemo(levelRef.current, session)
+  }
+
+  /** Replay demo animation only — keep ink, green guides, and grade progress. */
+  const playDemoKeepProgress = async (
+    returnPhase: 'writing' | 'passed',
+  ) => {
+    const writer = writerRef.current
+    const host = writerHostRef.current
+    if (!writer || !host || !strokeData) return
+
+    const session = ++sessionRef.current
+    demoKeepProgressRef.current = {
+      returnPhase,
+      liveGrade,
+      done: doneRef.current,
+      prev: prevStrokeDoneRef.current
+        ? prevStrokeDoneRef.current.slice()
+        : null,
+      last: lastStrokeDoneRef.current
+        ? lastStrokeDoneRef.current.slice()
+        : null,
+    }
+
+    void maybeSpeak()
+    setPhase('demo')
+    host.style.opacity = '1'
+    host.style.pointerEvents = 'none'
+
+    try {
+      writer.cancelQuiz()
+      await writer.hideCharacter()
+      await writer.showOutline()
+      await writer.animateCharacter()
+    } catch {
+      // Animation may be cancelled by teardown / skip.
+    }
+    if (sessionRef.current !== session) return
+
+    try {
+      await writer.hideCharacter()
+      await writer.hideOutline()
+    } catch {
+      /* ignore */
+    }
+    if (sessionRef.current !== session) return
+
+    restoreAfterKeepProgressDemo()
   }
 
   const replayGuide = () => {
     if (phase === 'loading' || phase === 'demo') return
+    if (phase !== 'writing' && phase !== 'passed') return
     clearAutoAdvance()
-    // Replay on a beaten level: leave review, clear saved ink, re-run demo+write.
-    if (isLevelBeaten(character, level)) {
-      const next = clearLevelInk(character, level)
-      notifyProgress(next)
-    }
-    sessionRef.current += 1
-    doneRef.current = false
-    void runDemoThenWrite(level)
+    void playDemoKeepProgress(phase)
   }
 
   const onClear = () => {
@@ -1976,11 +2052,11 @@ export default function TracePad({
         className={`trace-pair-btn${demoEnabled ? ' is-on' : ''}`}
         onClick={toggleDemoEnabled}
         aria-pressed={demoEnabled}
-        aria-label={demoEnabled ? 'Demo on' : 'Demo off'}
+        aria-label={demoEnabled ? 'Show demo' : 'Demo off'}
         title="Animated stroke-order demo"
       >
         <span aria-hidden="true">{demoEnabled ? '▶' : '⏸'}</span>
-        <span>Demo</span>
+        <span>{demoEnabled ? 'Show demo' : 'Demo off'}</span>
       </button>
       {(phase === 'demo' || phase === 'writing' || phase === 'passed') && (
         <button
