@@ -49,6 +49,13 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-20 — Silent per-level clearedAt timestamps (v0.037)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `progress.ts`, `version.ts`
+
+- **Silent tracking:** `markLevelBeaten` stores unix-ms `clearedAt[level]` (first clear wins). Sparse optional field on `CharProgress`; legacy beaten levels stay unstamped until re-cleared. `clearAllProgress` / `clearCharProgress` wipe timestamps with the rest. No UI / decay yet.
+
 ### 2026-09-20 — Pinyin size, Demo labels, replay keeps strokes (v0.036)
 
 **Who:** gold-hanzi (repo Grok)  

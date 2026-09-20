@@ -7,6 +7,12 @@ export type CharProgress = {
   beaten: number[]
   /** dataURL snapshots of ink canvas keyed by level string. */
   inkByLevel?: Record<string, string>
+  /**
+   * Unix ms when each beaten level was first cleared.
+   * Sparse: only keys for levels that have a known clear time (legacy beaten
+   * levels may lack an entry until cleared again after this field existed).
+   */
+  clearedAt?: Record<string, number>
 }
 
 export type ProgressStore = Record<string, CharProgress>
@@ -53,6 +59,19 @@ export function invalidateProgressCache(): void {
   beatenLenCache = null
 }
 
+function normalizeClearedAt(
+  raw: unknown,
+): Record<string, number> | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const out: Record<string, number> = {}
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof v === 'number' && Number.isFinite(v) && v > 0) {
+      out[k] = Math.floor(v)
+    }
+  }
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
 function normalizeEntry(entry: CharProgress | undefined): CharProgress {
   if (!entry || !Array.isArray(entry.beaten)) {
     return { beaten: [], inkByLevel: {} }
@@ -68,7 +87,10 @@ function normalizeEntry(entry: CharProgress | undefined): CharProgress {
       }
     }
   }
-  return { beaten, inkByLevel }
+  const clearedAt = normalizeClearedAt(entry.clearedAt)
+  const next: CharProgress = { beaten, inkByLevel }
+  if (clearedAt) next.clearedAt = clearedAt
+  return next
 }
 
 function ensureBeatenLenCache(): Map<string, number> {
@@ -88,6 +110,15 @@ export function getCharProgress(character: string): CharProgress {
 
 export function isLevelBeaten(character: string, level: number): boolean {
   return getCharProgress(character).beaten.includes(level)
+}
+
+/** Unix ms first-clear time for a level, or null if unbeaten / legacy without stamp. */
+export function getLevelClearedAt(
+  character: string,
+  level: number,
+): number | null {
+  const t = getCharProgress(character).clearedAt?.[String(level)]
+  return typeof t === 'number' ? t : null
 }
 
 /** Level L unlocked if L===1 or L-1 is beaten. */
@@ -127,6 +158,7 @@ export function saveLevelInk(
     beaten: current.beaten,
     inkByLevel,
   }
+  if (current.clearedAt) next.clearedAt = current.clearedAt
   store[character] = next
   writeStore(store)
   return next
@@ -141,6 +173,7 @@ export function clearLevelInk(character: string, level: number): CharProgress {
     beaten: current.beaten,
     inkByLevel,
   }
+  if (current.clearedAt) next.clearedAt = current.clearedAt
   store[character] = next
   writeStore(store)
   return next
@@ -159,9 +192,16 @@ export function markLevelBeaten(
   if (inkDataUrl) {
     inkByLevel[String(level)] = inkDataUrl
   }
+  const clearedAt: Record<string, number> = { ...(current.clearedAt ?? {}) }
+  const key = String(level)
+  // First clear wins; do not overwrite if already stamped (re-practice / re-mark).
+  if (clearedAt[key] == null) {
+    clearedAt[key] = Date.now()
+  }
   const next: CharProgress = {
     beaten: [...beaten].sort((a, b) => a - b),
     inkByLevel,
+    clearedAt,
   }
   store[character] = next
   writeStore(store)
