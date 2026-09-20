@@ -61,7 +61,8 @@ type TracePadProps = {
    */
   levelPipsHost?: HTMLElement | null
   /**
-   * Optional CTA shown on the same row as Next level (e.g. Next character).
+   * Optional CTA for the post-clear bar right half when no more levels
+   * remain (e.g. Next character / All caught up).
    */
   nextCharAction?: ReactNode
 }
@@ -522,27 +523,6 @@ function drawStrokeGuides(
       ctx.fill(path)
     } catch {
       // Ignore malformed path segments.
-    }
-  }
-
-  // White highlight line along the current (active) stroke median only.
-  if (
-    activeIdx >= fromStroke &&
-    activeIdx < medians.length &&
-    !strokeDone?.[activeIdx]
-  ) {
-    const median = medians[activeIdx]
-    if (median && median.length >= 2) {
-      ctx.beginPath()
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.92)'
-      ctx.lineWidth = Math.max(3.2 / scale, u * 0.14)
-      ctx.lineCap = 'round'
-      ctx.lineJoin = 'round'
-      ctx.moveTo(median[0]![0]!, median[0]![1]!)
-      for (let i = 1; i < median.length; i++) {
-        ctx.lineTo(median[i]![0]!, median[i]![1]!)
-      }
-      ctx.stroke()
     }
   }
 
@@ -2236,16 +2216,32 @@ export default function TracePad({
               </div>
             )}
             {phase === 'passed' && (
-              <button
-                type="button"
-                className="trace-success is-replay"
-                onClick={replayGuide}
-                aria-label={`Level ${level} cleared, click to replay`}
-                title="Replay this level"
-              >
-                <span className="trace-check">✓</span>
-                <span>Level {level} cleared (click to replay)</span>
-              </button>
+              <div className="trace-clear-bar" role="group" aria-label="Level completed">
+                <button
+                  type="button"
+                  className="trace-clear-bar-left"
+                  onClick={replayGuide}
+                  aria-label={`Level ${level} completed, click to replay`}
+                  title="Replay this level"
+                >
+                  <span className="trace-check">✓</span>
+                  <span>Level {level} completed</span>
+                </button>
+                <div className="trace-clear-bar-right">
+                  {level < levelCount ? (
+                    <button
+                      type="button"
+                      className="trace-clear-bar-next"
+                      onClick={goNextLevel}
+                      disabled={!isLevelUnlocked(character, level + 1)}
+                    >
+                      Next level
+                    </button>
+                  ) : (
+                    nextCharAction
+                  )}
+                </div>
+              </div>
             )}
             {padToast && (
               <div className="trace-try-again-toast" role="status" aria-live="polite">
@@ -2372,22 +2368,6 @@ export default function TracePad({
           {voiceNote}
         </p>
       )}
-      {((phase === 'passed' && level < levelCount) || nextCharAction) && (
-        <div className="trace-actions">
-          {phase === 'passed' && level < levelCount && (
-            <button
-              type="button"
-              className="btn btn-primary btn-compact"
-              onClick={goNextLevel}
-              disabled={!isLevelUnlocked(character, level + 1)}
-            >
-              Next level
-            </button>
-          )}
-          {nextCharAction}
-        </div>
-      )}
-
       <p className="trace-hint">
         {phase === 'passed' ? (
           <>

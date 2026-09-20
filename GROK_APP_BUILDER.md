@@ -49,6 +49,15 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-20 — Split clear bar, lower pinyin, drop white stroke line (v0.038)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `TracePad.tsx`, `Practice.tsx`, `index.css`, `version.ts`
+
+- **Post-clear bar (mobile-first):** after level clear, one bar across the pad (~half/half): left **Level N completed** (click to replay); right **Next level** or **Next character** (no duplicate next CTAs below the pad).
+- **Pinyin:** moved a bit lower under the level row again.
+- **Guides:** removed white current-stroke median highlight; numbered markers + purple start arrow on the active stroke unchanged.
+
 ### 2026-09-20 — Silent per-level clearedAt timestamps (v0.037)
 
 **Who:** gold-hanzi (repo Grok)  

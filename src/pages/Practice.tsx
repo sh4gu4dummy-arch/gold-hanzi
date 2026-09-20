@@ -399,15 +399,16 @@ export default function Practice() {
           finished && allLevelsCleared ? (
             nextEntry ? (
               <Link
-                className="btn btn-primary next-char-btn next-char-btn-sm"
+                className="next-char-btn"
                 to={`/practice/${nextEntry.id}`}
+                aria-label={`Next character ${nextEntry.character} ${nextEntry.pinyin}`}
               >
-                Next character · {nextEntry.character} {nextEntry.pinyin}
+                Next character
               </Link>
             ) : (
-              <p className="next-hint next-caught-up">
+              <p className="next-caught-up">
                 All caught up!{' '}
-                <Link to="/">Back to home</Link>
+                <Link to="/">Home</Link>
               </p>
             )
           ) : null
