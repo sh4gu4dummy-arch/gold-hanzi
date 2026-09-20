@@ -2090,7 +2090,6 @@ export default function TracePad({
 
   const levelPipsStrip: ReactNode = (
     <div className="level-pips-row">
-      {demoReplayControls}
       <div
         className={`level-pips-wrap${pipsOverflow ? ' is-overflow' : ''}`}
         aria-label={`Levels beaten: ${beatenSet.size} of ${levelCount}`}
@@ -2185,31 +2184,30 @@ export default function TracePad({
   )
 
 
+  const strokeProgressBadge: ReactNode =
+    phase === 'writing' ? (
+      <div
+        className={`trace-pad-chrome-strokes grade-meter${liveGrade?.pass ? ' is-ok' : ''}`}
+        aria-live="polite"
+        aria-label={`${strokesDone} of ${strokeTotal} strokes completed`}
+      >
+        <span className="grade-meter-progress">
+          {strokesDone}/{strokeTotal} strokes
+        </span>
+      </div>
+    ) : null
+
   return (
     <div className="trace-pad">
-      {(phase === 'writing' || phase === 'passed' || phase === 'demo') && (
-        <div className="grade-meter-row">
-          {phase === 'writing' && (
-            <div
-              className={`grade-meter${liveGrade?.pass ? ' is-ok' : ''}`}
-              aria-live="polite"
-              aria-label={`${strokesDone} of ${strokeTotal} strokes completed`}
-            >
-              <span className="grade-meter-progress">
-                {strokesDone}/{strokeTotal} strokes
-              </span>
-            </div>
-          )}
-        </div>
-      )}
-
-
-
       {levelPipsHost
         ? createPortal(levelPipsStrip, levelPipsHost)
         : levelPipsStrip}
 
       <div className="trace-stage-block">
+        <div className="trace-pad-chrome" aria-label="Demo and stroke progress">
+          {demoReplayControls}
+          {strokeProgressBadge ?? <span className="trace-pad-chrome-spacer" aria-hidden="true" />}
+        </div>
         <div className="trace-stage-slot">
           <div
             ref={wrapRef}

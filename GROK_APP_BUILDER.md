@@ -49,6 +49,14 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-20 — Draft A: Demo/Replay + strokes outside pad (v0.043)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `TracePad.tsx`, `index.css`, `version.ts`
+
+- **Chrome above pad:** thin `.trace-pad-chrome` row (same width as stage) sits just above `.trace-stage-slot` — left Demo on/off + Replay/Skip, right compact stroke badge (`N/M strokes`) during writing. Controls no longer float on the grid or sit beside level pips.
+- **Levels alone:** portal pips strip is circles only; `.level-pips-row` recentered without Demo pair.
+
 ### 2026-09-20 — Auto next solid ON; advance when toggled after clear (v0.042)
 
 **Who:** gold-hanzi (repo Grok)  

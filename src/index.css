@@ -458,6 +458,7 @@ h1 {
 .level-pips-row {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   width: min(100%, 520px);
   margin: 0 auto;
@@ -466,25 +467,12 @@ h1 {
   padding: 0 0 2px;
 }
 
-.level-pips-row .trace-stage-pair {
-  width: auto;
-  margin: 0;
-  margin-bottom: 0;
-  padding: 0;
-  justify-content: flex-start;
-  flex-shrink: 0;
-}
-
 .level-pips-row .level-pips-wrap {
   flex: 1 1 auto;
   min-width: 0;
   width: auto;
   margin: 0;
   padding: 0;
-}
-
-.level-pips-row .level-pips-wrap:not(.is-overflow) .level-pips {
-  justify-content: flex-start;
 }
 
 
@@ -827,7 +815,53 @@ h1 {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
+}
+
+/* Thin chrome above the square pad: Demo/Replay left, stroke count right. */
+.trace-pad-chrome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: min(100%, 520px);
+  margin: 0 auto;
+  flex-shrink: 0;
+  min-width: 0;
+  padding: 0 2px;
+  box-sizing: border-box;
+}
+
+.trace-pad-chrome .trace-stage-pair {
+  width: auto;
+  margin: 0;
+  margin-bottom: 0;
+  padding: 0;
+  justify-content: flex-start;
+  flex-shrink: 0;
+}
+
+.trace-pad-chrome-strokes {
+  margin: 0;
+  width: auto;
+  flex-shrink: 0;
+  text-align: right;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--accent-ink);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+  border-radius: 999px;
+  padding: 5px 10px;
+  white-space: nowrap;
+}
+
+.trace-pad-chrome-spacer {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 1px;
+  visibility: hidden;
 }
 
 .trace-stage-pair {
