@@ -26,7 +26,6 @@ import {
   setPhrasesEnabled,
   setSoundTipSeen,
 } from '../lib/homePref'
-import { getSoundEnabled } from '../lib/soundPref'
 import { clearCharProgress, getCharProgress } from '../lib/progress'
 import type { CharProgress } from '../lib/progress'
 import { speakHanzi } from '../lib/speak'
@@ -198,8 +197,8 @@ export default function Practice() {
             <ThemeToggle />
           </div>
         </div>
-        <div className="practice-meta">
-          <p className="practice-meta-sub">
+        <div className="practice-meta practice-meta-compact">
+          <p className="practice-meta-left">
             {entry.meaning}
             {levelCount > 0 && (
               <>
@@ -207,15 +206,19 @@ export default function Practice() {
                 · {cleared}/{levelCount}
               </>
             )}
+            {bandLessonMeta && (
+              <>
+                {' '}
+                · L{bandLessonMeta.lessonNumber}{' '}
+                {bandLessonMeta.lessonCleared}/{bandLessonMeta.lessonTotal}
+              </>
+            )}
           </p>
           {bandLessonMeta && (
             <p
-              className="practice-meta-band"
-              title={`${bandLessonMeta.bandLabel}: ${bandLessonMeta.bandCleared}/${bandLessonMeta.bandTotal} chars · Lesson ${bandLessonMeta.lessonNumber}: ${bandLessonMeta.lessonCleared}/${bandLessonMeta.lessonTotal} cleared`}
+              className="practice-meta-right"
+              title={`${bandLessonMeta.bandLabel}: ${bandLessonMeta.bandCleared}/${bandLessonMeta.bandTotal} chars cleared`}
             >
-              L{bandLessonMeta.lessonNumber}{' '}
-              {bandLessonMeta.lessonCleared}/{bandLessonMeta.lessonTotal}
-              {' · '}
               {bandLessonMeta.bandLabel} {bandLessonMeta.bandCleared}/
               {bandLessonMeta.bandTotal}
             </p>
@@ -237,7 +240,7 @@ export default function Practice() {
                   })
                 }}
               >
-                <span>Context phrase</span>
+                <span>Phrase</span>
                 <span className="practice-phrase-chev" aria-hidden="true">
                   {phraseOpen ? '▾' : '▸'}
                 </span>
@@ -257,28 +260,41 @@ export default function Practice() {
             </div>
             {phraseOpen && (
               <div className="practice-phrase-body">
+                <div className="practice-phrase-main">
+                  <button
+                    type="button"
+                    className="practice-phrase-hanzi"
+                    lang="zh-Hans"
+                    aria-label={`Speak phrase ${entry.phrase}`}
+                    title="Speak phrase"
+                    onClick={() => {
+                      void speakHanzi(entry.phrase!)
+                    }}
+                  >
+                    {Array.from(entry.phrase).map((ch, i) => (
+                      <span
+                        key={`${ch}-${i}`}
+                        className={`practice-phrase-char${
+                          ch === entry.character ? ' is-current' : ''
+                        }`}
+                      >
+                        {ch}
+                      </span>
+                    ))}
+                  </button>
+                  <p className="practice-phrase-gloss">{entry.phraseGloss}</p>
+                </div>
                 <button
                   type="button"
-                  className="practice-phrase-hanzi"
-                  lang="zh-Hans"
-                  aria-label={`Speak phrase ${entry.phrase}`}
-                  title="Speak phrase"
+                  className="practice-phrase-speak"
                   onClick={() => {
-                    if (getSoundEnabled()) void speakHanzi(entry.phrase!)
+                    void speakHanzi(entry.phrase!)
                   }}
+                  title="Speak phrase"
+                  aria-label={`Speak phrase ${entry.phrase}`}
                 >
-                  {Array.from(entry.phrase).map((ch, i) => (
-                    <span
-                      key={`${ch}-${i}`}
-                      className={`practice-phrase-char${
-                        ch === entry.character ? ' is-current' : ''
-                      }`}
-                    >
-                      {ch}
-                    </span>
-                  ))}
+                  <span aria-hidden="true">🔊</span>
                 </button>
-                <p className="practice-phrase-gloss">{entry.phraseGloss}</p>
               </div>
             )}
           </div>

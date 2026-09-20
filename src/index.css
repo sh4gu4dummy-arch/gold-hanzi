@@ -244,7 +244,7 @@ h1 {
 .practice-bar {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   flex-shrink: 0;
 }
 
@@ -268,20 +268,29 @@ h1 {
   padding: 0 4px;
 }
 
+.practice-bar .practice-meta.practice-meta-compact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+  padding: 0 2px;
+}
+
 .practice-home {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
-  min-height: 40px;
-  padding: 6px 10px;
+  min-height: 34px;
+  padding: 4px 9px;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--accent-ink);
   text-decoration: none;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1;
   touch-action: manipulation;
 }
@@ -313,6 +322,33 @@ h1 {
   text-overflow: ellipsis;
 }
 
+.practice .practice-meta-left {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+.practice .practice-meta-right {
+  margin: 0;
+  flex: 0 1 auto;
+  max-width: 46%;
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+  opacity: 0.95;
+}
+
 .practice .practice-meta-band {
   margin: 2px 0 0;
   font-size: 11px;
@@ -334,11 +370,11 @@ h1 {
 
 .practice-pinyin {
   display: block;
-  font-size: clamp(18px, 5vw, 24px);
+  font-size: clamp(16px, 4.5vw, 22px);
   font-weight: 700;
   letter-spacing: 0.02em;
   color: var(--accent);
-  line-height: 1.1;
+  line-height: 1.05;
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
@@ -351,11 +387,11 @@ h1 {
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--accent);
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   margin: 0;
-  border-radius: 12px;
+  border-radius: 10px;
   display: inline-grid;
   place-items: center;
   font-size: 16px;
@@ -1270,8 +1306,8 @@ h1 {
 
 
 @media (max-height: 850px) {
-  .practice .practice-meta-sub,
-  .practice .practice-meta p {
+  .practice .practice-meta:not(.practice-meta-compact) .practice-meta-sub,
+  .practice .practice-meta:not(.practice-meta-compact) p {
     display: none;
   }
 
@@ -1759,8 +1795,8 @@ h1 {
 
 
 .practice-phrase-panel {
-  margin: 6px 0 0;
-  border-radius: 10px;
+  margin: 2px 0 0;
+  border-radius: 8px;
   border: 1px solid var(--line);
   background: color-mix(in srgb, var(--surface) 92%, var(--muted));
   overflow: hidden;
@@ -1770,14 +1806,14 @@ h1 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
-  padding: 7px 10px;
+  padding: 3px 8px;
   border: 0;
   background: transparent;
-  color: var(--text);
+  color: var(--muted);
   font: inherit;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   text-align: left;
@@ -1795,8 +1831,20 @@ h1 {
 }
 
 .practice-phrase-body {
-  padding: 0 10px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px 4px 8px;
   border-top: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+}
+
+.practice-phrase-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
 }
 
 
@@ -1813,8 +1861,9 @@ h1 {
 
 .practice-phrase-gloss {
   margin: 0;
-  text-align: center;
-  font-size: 13px;
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.2;
   color: var(--muted);
 }
 
@@ -1831,13 +1880,13 @@ h1 {
 
 .practice-phrase-hide {
   flex: 0 0 auto;
-  padding: 7px 10px;
+  padding: 3px 8px;
   border: 0;
   border-left: 1px solid var(--line);
   background: transparent;
   color: var(--muted);
   font: inherit;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -1850,20 +1899,43 @@ h1 {
 }
 
 .practice-phrase-hanzi {
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
-  gap: 2px;
-  justify-content: center;
-  margin: 8px 0 4px;
+  gap: 1px;
+  justify-content: flex-start;
+  margin: 0;
   padding: 0;
   border: 0;
   background: transparent;
   font: inherit;
-  font-size: 28px;
-  line-height: 1.2;
-  letter-spacing: 0.04em;
+  font-size: 22px;
+  line-height: 1.15;
+  letter-spacing: 0.03em;
   cursor: pointer;
   color: inherit;
+}
+
+.practice-phrase-speak {
+  appearance: none;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.practice-phrase-speak:hover,
+.practice-phrase-speak:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  outline: none;
 }
 
 .practice-phrase-hanzi:hover,
@@ -1875,8 +1947,8 @@ h1 {
 .practice-phrase-show {
   display: block;
   width: 100%;
-  margin: 6px 0 0;
-  padding: 6px 10px;
+  margin: 2px 0 0;
+  padding: 4px 8px;
   border: 1px dashed var(--line);
   border-radius: 10px;
   background: transparent;
@@ -1897,16 +1969,16 @@ h1 {
 
 .practice-sound-tip {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  margin: 6px 0 0;
-  padding: 8px 10px;
-  border-radius: 10px;
+  gap: 6px;
+  margin: 2px 0 0;
+  padding: 3px 8px;
+  border-radius: 8px;
   border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
   background: color-mix(in srgb, var(--accent) 10%, var(--surface));
-  font-size: 12px;
-  line-height: 1.35;
+  font-size: 11px;
+  line-height: 1.25;
   color: var(--text);
 }
 

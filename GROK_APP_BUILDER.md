@@ -49,6 +49,15 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-20 — Dense practice top, phrase speak icon (v0.032)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `Practice.tsx`, `index.css`, `version.ts`
+
+- **Dense top (mobile-first ~390px):** tighter Home/pinyin/version row; one compact meta line with **lesson progress left** and **band/list progress right** (no longer hidden under short-viewport media).
+- **Slimmer phrase card:** “Phrase” head + less padding; phrase + gloss + visible 🔊; levels sit closer under it. Sound tip tighter.
+- **Phrase TTS:** tap phrase or speaker always `speakHanzi(phrase)` — not gated on Auto/`getSoundEnabled()`.
+
 ### 2026-09-19 — Pinyin top bar, next-char row, dark headphones (v0.031)
 
 **Who:** gold-hanzi (repo Grok)  
