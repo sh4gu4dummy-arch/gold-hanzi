@@ -773,6 +773,127 @@ export function paintCapExceeded(painted: number, strokeArea: number): boolean {
   return painted > strokeArea * STROKE_PAINT_CAP
 }
 
+/**
+ * My-ink pass: keep radius as a multiple of inkWidthCss (device px via dpr).
+ * Much looser than strokeHitRadius — only extreme “rural” outliers are trimmed.
+ * Natural imperfect ink well outside the guide silhouette stays.
+ */
+export const MY_INK_OUTLIER_INK_FACTOR = 2.8
+
+/** Device-pixel radius for My-ink outlier keep (median / path neighborhood). */
+export function myInkOutlierRadius(dpr: number): number {
+  return Math.max(20, Math.round(inkWidthCss() * MY_INK_OUTLIER_INK_FACTOR * dpr))
+}
+
+/** OR a disk into keepBits (device-pixel center + radius). */
+function stampKeepDisk(
+  keepBits: Uint8Array,
+  width: number,
+  height: number,
+  cx: number,
+  cy: number,
+  rad: number,
+): void {
+  const rad2 = rad * rad
+  const x0 = Math.max(0, Math.floor(cx - rad))
+  const y0 = Math.max(0, Math.floor(cy - rad))
+  const x1 = Math.min(width - 1, Math.ceil(cx + rad))
+  const y1 = Math.min(height - 1, Math.ceil(cy + rad))
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const dx = x + 0.5 - cx
+      const dy = y + 0.5 - cy
+      if (dx * dx + dy * dy > rad2) continue
+      keepBits[y * width + x] = 1
+    }
+  }
+}
+
+/** Fat keep corridor along a mapped median polyline (device px). */
+export function stampMedianKeepBits(
+  keepBits: Uint8Array,
+  width: number,
+  height: number,
+  median: Point[],
+  radiusDevice: number,
+): void {
+  if (median.length === 0 || radiusDevice <= 0) return
+  if (median.length === 1) {
+    stampKeepDisk(
+      keepBits,
+      width,
+      height,
+      median[0]!.x,
+      median[0]!.y,
+      radiusDevice,
+    )
+    return
+  }
+  for (let i = 1; i < median.length; i++) {
+    const a = median[i - 1]!
+    const b = median[i]!
+    const dist = Math.hypot(b.x - a.x, b.y - a.y)
+    const steps = Math.max(1, Math.ceil(dist / Math.max(2, radiusDevice * 0.35)))
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps
+      stampKeepDisk(
+        keepBits,
+        width,
+        height,
+        a.x + (b.x - a.x) * t,
+        a.y + (b.y - a.y) * t,
+        radiusDevice,
+      )
+    }
+  }
+}
+
+/**
+ * Build a generous near-stroke keep mask for My-ink pass trim:
+ * Path2D fill ∪ fat median corridor (~2.8× ink width). Pixels outside are
+ * extreme outliers only — do not morph user ink onto the guide.
+ */
+export function buildStrokeKeepBits(
+  strokePath: string,
+  mappedMedian: Point[],
+  cssSize: number,
+  width: number,
+  height: number,
+  dpr: number,
+  contentCenter: Point,
+): Uint8Array {
+  const keepBits = new Uint8Array(width * height)
+  const radius = myInkOutlierRadius(dpr)
+
+  // Path2D fill (natural stroke silhouette) — same transform as letter mask.
+  if (strokePath) {
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (ctx) {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      ctx.clearRect(0, 0, cssSize, cssSize)
+      ctx.fillStyle = '#000'
+      ctx.save()
+      applyHanziTransform(ctx, cssSize, contentCenter)
+      try {
+        ctx.fill(new Path2D(strokePath))
+      } catch {
+        // Ignore malformed path segments.
+      }
+      ctx.restore()
+      const data = ctx.getImageData(0, 0, width, height).data
+      for (let i = 0; i < keepBits.length; i++) {
+        if (data[i * 4 + 3]! > 24) keepBits[i] = 1
+      }
+    }
+  }
+
+  // Fat median corridor covers imperfect ink outside the Path2D silhouette.
+  stampMedianKeepBits(keepBits, width, height, mappedMedian, radius)
+  return keepBits
+}
 
 /**
  * Whether stroke `si` independently meets median hit-fraction + end-band

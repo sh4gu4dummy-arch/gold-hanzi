@@ -20,6 +20,7 @@ import {
   activeStrokeIndex,
   applyHanziTransform,
   buildLetterMask,
+  buildStrokeKeepBits,
   clearInk,
   contentCenterFromMedians,
   countSetBits,
@@ -649,6 +650,65 @@ function blitCanvas(
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   ctx.clearRect(0, 0, dest.width, dest.height)
   ctx.drawImage(source, 0, 0, dest.width, dest.height)
+}
+
+/**
+ * My-ink pass: recolor this-gesture paintBits pixels to done-green; erase only
+ * those outside the generous stroke keep mask (extreme outliers). Leaves the
+ * learner’s silhouette intact — no snap-to-guide morph.
+ */
+function applyMyInkStrokePass(
+  store: HTMLCanvasElement,
+  visible: HTMLCanvasElement | null,
+  paintBits: Uint8Array,
+  keepBits: Uint8Array,
+  greenHex: string,
+): void {
+  const ctx = store.getContext('2d')
+  if (!ctx) return
+  const width = store.width
+  const height = store.height
+  if (width * height !== paintBits.length || keepBits.length !== paintBits.length) {
+    return
+  }
+  let img: ImageData
+  try {
+    img = ctx.getImageData(0, 0, width, height)
+  } catch {
+    return
+  }
+  const data = img.data
+  const raw = greenHex.replace('#', '')
+  const full =
+    raw.length === 3
+      ? raw
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : raw
+  const num = Number.parseInt(full, 16)
+  const gr = Number.isNaN(num) ? 0x22 : (num >> 16) & 0xff
+  const gg = Number.isNaN(num) ? 0xa0 : (num >> 8) & 0xff
+  const gb = Number.isNaN(num) ? 0x6b : num & 0xff
+
+  for (let i = 0; i < paintBits.length; i++) {
+    if (!paintBits[i]) continue
+    const o = i * 4
+    if (data[o + 3]! < 8) continue
+    if (!keepBits[i]) {
+      data[o] = 0
+      data[o + 1] = 0
+      data[o + 2] = 0
+      data[o + 3] = 0
+      continue
+    }
+    data[o] = gr
+    data[o + 1] = gg
+    data[o + 2] = gb
+    // Keep existing alpha so pressure/edge softens stay readable.
+  }
+  ctx.putImageData(img, 0, 0)
+  if (visible) blitCanvas(store, visible)
 }
 
 /** Stroke/dot style shared by visible ink canvas and offscreen store. */
@@ -1411,8 +1471,13 @@ export default function TracePad({
     }
 
     const prev = prevStrokeDoneRef.current
-    const newlyDone =
-      status.strokeDone?.some((d, i) => d && !(prev && prev[i])) ?? false
+    const newlyDoneIdxs: number[] = []
+    if (status.strokeDone) {
+      for (let i = 0; i < status.strokeDone.length; i++) {
+        if (status.strokeDone[i] && !(prev && prev[i])) newlyDoneIdxs.push(i)
+      }
+    }
+    const newlyDone = newlyDoneIdxs.length > 0
     prevStrokeDoneRef.current = status.strokeDone
       ? status.strokeDone.slice()
       : null
@@ -1420,12 +1485,48 @@ export default function TracePad({
       lastStrokeDoneRef.current = status.strokeDone.slice()
     }
 
-    // After a stroke passes: hide hand ink so only the green guide remains.
-    // Extra writing after that stays accent-purple and still stamps toward
-    // remaining strokes. Also mark this gesture so pen-up clears any
-    // post-success leftover purple immediately (not on the next stroke).
+    // Guide mode: after a stroke passes, hide hand ink so only the green
+    // guide remains. Extra writing after that stays accent-purple and still
+    // stamps toward remaining strokes. Mark this gesture so pen-up clears
+    // any post-success leftover purple immediately (not on the next stroke).
     if (!showInk && (newlyDone || status.pass)) {
       clearCanvasPixels(inkCanvasRef.current)
+      if (newlyDone) gesturePassedStrokeRef.current = true
+    }
+
+    // My ink ON: turn this gesture’s ink green (readable) and trim only
+    // extreme outliers far from the passed stroke path — keep the silhouette.
+    if (showInk && newlyDone && strokeData) {
+      const store = inkStoreRef.current ?? ensureInkStore()
+      const paintBits = paintBitsRef.current
+      if (store && paintBits && paintBits.length === mask.width * mask.height) {
+        const cssSize = stageCssSize()
+        const contentCenter = contentCenterFromMedians(strokeData.medians)
+        const keepBits = new Uint8Array(mask.width * mask.height)
+        for (const si of newlyDoneIdxs) {
+          const path = strokeData.strokes[si] ?? ''
+          const median = mask.mappedStrokes[si] ?? []
+          const strokeKeep = buildStrokeKeepBits(
+            path,
+            median,
+            cssSize,
+            mask.width,
+            mask.height,
+            mask.dpr,
+            contentCenter,
+          )
+          for (let i = 0; i < keepBits.length; i++) {
+            if (strokeKeep[i]) keepBits[i] = 1
+          }
+        }
+        applyMyInkStrokePass(
+          store,
+          inkCanvasRef.current,
+          paintBits,
+          keepBits,
+          DONE_STROKE_GREEN,
+        )
+      }
       if (newlyDone) gesturePassedStrokeRef.current = true
     }
 
@@ -1437,7 +1538,7 @@ export default function TracePad({
     if (status.pass) {
       finishPass()
     }
-  }, [captureStrokeBaseline, finishPass, paintGuide])
+  }, [captureStrokeBaseline, ensureInkStore, finishPass, paintGuide, strokeData])
 
   const runDemoThenWrite = useCallback(
     async (levelNum: number) => {

@@ -49,6 +49,16 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-24 — My ink: green on pass, trim far outliers (v0.045)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `TracePad.tsx`, `grading.ts`, `version.ts`
+
+- **My ink ON + stroke pass:** the just-completed gesture’s ink recolors to done-green (`#22A06B`) so the result stays readable (no purple-only / invisible-against-guide). Guide mode unchanged (clear ink → green guide).
+- **Far-outlier trim only:** erase gesture pixels outside Path2D fill ∪ ~2.8× ink-width median corridor (`buildStrokeKeepBits`). Natural imperfect ink stays — no snap-to-guide morph. Tight trim is rare; wild strokes usually fail grading anyway.
+- Mid-gesture / failed strokes unchanged; undo/clear still work. Saved level ink after pass stores the greened silhouette.
+
+
 ### 2026-09-20 — Subtle char-clear celebrate (v0.044)
 
 **Who:** gold-hanzi (repo Grok)  
