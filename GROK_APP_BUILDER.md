@@ -49,6 +49,14 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-24 — Prev character arrow + My ink green fix (v0.046)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `TracePad.tsx`, `Practice.tsx`, `homeCatalog.ts`, `index.css`, `version.ts`
+
+- **Prev character:** `‹` control left of level 1 in the pip strip (portal host). Links to prior unlocked entry (`prevUnlockedEntry`); muted/disabled on the first item. Pinyin-only aria/title (no hanzi spoiler).
+- **My ink green fix:** mid-gesture pass cleared `paintBits` then further purple overdraw never greened. Now (1) green paintBits + AA fringe inside keep on pass, (2) force-green all done-stroke keep regions on pass and on pen-up, (3) sync store size before apply. My ink dock goes done-green when the character is fully cleared.
+
 ### 2026-09-24 — My ink: green on pass, trim far outliers (v0.045)
 
 **Who:** gold-hanzi (repo Grok)  

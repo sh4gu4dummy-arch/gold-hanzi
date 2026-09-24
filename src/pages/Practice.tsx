@@ -15,6 +15,7 @@ import {
   entriesForView,
   locateEntryBandLesson,
   nextUnlockedEntry,
+  prevUnlockedEntry,
   strokeLevelCount,
 } from '../lib/homeCatalog'
 import {
@@ -148,6 +149,11 @@ export default function Practice() {
   const nextEntry = useMemo(() => {
     if (!entry) return null
     return nextUnlockedEntry(entry.id, ordered, getDifficultyMode())
+  }, [entry, ordered, progress.beaten.length, finishedChar])
+
+  const prevEntry = useMemo(() => {
+    if (!entry) return null
+    return prevUnlockedEntry(entry.id, ordered, getDifficultyMode())
   }, [entry, ordered, progress.beaten.length, finishedChar])
 
   const nextEntryIdRef = useRef<string | null>(null)
@@ -403,6 +409,22 @@ export default function Practice() {
         onActiveLevelChange={(_level, levelCleared) => {
           setActiveLevelCleared(levelCleared)
         }}
+        prevCharAction={
+          prevEntry ? (
+            <Link
+              className="prev-char-arrow"
+              to={`/practice/${prevEntry.id}`}
+              aria-label={`Previous character ${prevEntry.pinyin}`}
+              title={`Previous: ${prevEntry.pinyin}`}
+            >
+              ‹
+            </Link>
+          ) : (
+            <span className="prev-char-arrow is-disabled" aria-hidden="true">
+              ‹
+            </span>
+          )
+        }
         nextCharAction={
           finished && allLevelsCleared ? (
             nextEntry ? (

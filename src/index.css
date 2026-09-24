@@ -475,6 +475,36 @@ h1 {
   padding: 0;
 }
 
+/* Previous character — sits left of level 1 in the pip row (phone chrome). */
+.prev-char-arrow {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--accent-ink);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  touch-action: manipulation;
+}
+.prev-char-arrow:hover,
+.prev-char-arrow:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  outline: none;
+}
+.prev-char-arrow.is-disabled {
+  opacity: 0.28;
+  pointer-events: none;
+}
+
 
 .back-link {
   width: fit-content;
@@ -616,6 +646,13 @@ h1 {
   filter: brightness(1.08);
   color: white;
   outline: none;
+}
+
+/* My ink ON + character cleared: done-green chrome (matches ink). */
+.dock-btn.is-on.is-ink-done {
+  border-color: color-mix(in srgb, #22a06b 55%, white);
+  background: color-mix(in srgb, #22a06b 88%, black);
+  box-shadow: 0 2px 8px color-mix(in srgb, #22a06b 28%, transparent);
 }
 
 /* Practice toggles (Guide/My ink, Auto sound): match Demo off shading. */

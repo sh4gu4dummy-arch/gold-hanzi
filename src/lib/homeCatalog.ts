@@ -178,3 +178,23 @@ export function nextUnlockedEntry(
   }
   return null
 }
+
+/**
+ * Previous unlocked character before `currentId` in the flat HSK view order
+ * (mirror of nextUnlockedEntry). Null if none.
+ */
+export function prevUnlockedEntry(
+  currentId: string,
+  ordered: CharacterEntry[],
+  mode: DifficultyMode,
+): CharacterEntry | null {
+  const idx = ordered.findIndex((e) => e.id === currentId)
+  if (idx < 0) return null
+  for (let i = idx - 1; i >= 0; i--) {
+    const candidate = ordered[i]!
+    if (isCharacterUnlocked(candidate, ordered, mode)) {
+      return candidate
+    }
+  }
+  return null
+}

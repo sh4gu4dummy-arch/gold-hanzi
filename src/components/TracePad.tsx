@@ -119,6 +119,11 @@ type TracePadProps = {
    */
   nextCharAction?: ReactNode
   /**
+   * Optional previous-character control rendered left of level 1 in the
+   * pip strip (Practice: link to prior unlocked entry).
+   */
+  prevCharAction?: ReactNode
+  /**
    * When Auto next is on and the last level clears, called after the same
    * delay as level auto-advance (Practice: navigate to next character).
    */
@@ -652,10 +657,26 @@ function blitCanvas(
   ctx.drawImage(source, 0, 0, dest.width, dest.height)
 }
 
+/** Parse #RGB / #RRGGBB into 0–255 channels (fallback done-green). */
+function parseHexRgb(hex: string): [number, number, number] {
+  const raw = hex.replace('#', '')
+  const full =
+    raw.length === 3
+      ? raw
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : raw
+  const num = Number.parseInt(full, 16)
+  if (Number.isNaN(num)) return [0x22, 0xa0, 0x6b]
+  return [(num >> 16) & 0xff, (num >> 8) & 0xff, num & 0xff]
+}
+
 /**
  * My-ink pass: recolor this-gesture paintBits pixels to done-green; erase only
- * those outside the generous stroke keep mask (extreme outliers). Leaves the
- * learner’s silhouette intact — no snap-to-guide morph.
+ * those outside the generous stroke keep mask (extreme outliers). Also greens
+ * any other opaque ink already inside keepBits (AA fringe / prior overdraw).
+ * Leaves the learner’s silhouette intact — no snap-to-guide morph.
  */
 function applyMyInkStrokePass(
   store: HTMLCanvasElement,
@@ -664,7 +685,7 @@ function applyMyInkStrokePass(
   keepBits: Uint8Array,
   greenHex: string,
 ): void {
-  const ctx = store.getContext('2d')
+  const ctx = store.getContext('2d', { willReadFrequently: true })
   if (!ctx) return
   const width = store.width
   const height = store.height
@@ -678,34 +699,140 @@ function applyMyInkStrokePass(
     return
   }
   const data = img.data
-  const raw = greenHex.replace('#', '')
-  const full =
-    raw.length === 3
-      ? raw
-          .split('')
-          .map((c) => c + c)
-          .join('')
-      : raw
-  const num = Number.parseInt(full, 16)
-  const gr = Number.isNaN(num) ? 0x22 : (num >> 16) & 0xff
-  const gg = Number.isNaN(num) ? 0xa0 : (num >> 8) & 0xff
-  const gb = Number.isNaN(num) ? 0x6b : num & 0xff
+  const [gr, gg, gb] = parseHexRgb(greenHex)
 
   for (let i = 0; i < paintBits.length; i++) {
-    if (!paintBits[i]) continue
     const o = i * 4
     if (data[o + 3]! < 8) continue
-    if (!keepBits[i]) {
+    if (paintBits[i]) {
+      if (!keepBits[i]) {
+        data[o] = 0
+        data[o + 1] = 0
+        data[o + 2] = 0
+        data[o + 3] = 0
+        continue
+      }
+      data[o] = gr
+      data[o + 1] = gg
+      data[o + 2] = gb
+      continue
+    }
+    // Opaque ink inside keep but outside paintBits (AA fringe): green too.
+    if (keepBits[i]) {
+      data[o] = gr
+      data[o + 1] = gg
+      data[o + 2] = gb
+    }
+  }
+  ctx.putImageData(img, 0, 0)
+  if (visible) blitCanvas(store, visible)
+}
+
+/**
+ * Force every opaque pixel inside done-stroke keep masks to done-green.
+ * Fixes purple tails when the pen keeps moving after a mid-gesture pass
+ * (paintBits was cleared, so later purple overdraw never got greened).
+ */
+function recolorDoneKeepsToGreen(
+  store: HTMLCanvasElement,
+  visible: HTMLCanvasElement | null,
+  keepBits: Uint8Array,
+  greenHex: string,
+): void {
+  const ctx = store.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return
+  const width = store.width
+  const height = store.height
+  if (width * height !== keepBits.length) return
+  let img: ImageData
+  try {
+    img = ctx.getImageData(0, 0, width, height)
+  } catch {
+    return
+  }
+  const data = img.data
+  const [gr, gg, gb] = parseHexRgb(greenHex)
+  for (let i = 0; i < keepBits.length; i++) {
+    if (!keepBits[i]) continue
+    const o = i * 4
+    if (data[o + 3]! < 8) continue
+    data[o] = gr
+    data[o + 1] = gg
+    data[o + 2] = gb
+  }
+  ctx.putImageData(img, 0, 0)
+  if (visible) blitCanvas(store, visible)
+}
+
+/** True when pixel RGB is closer to accent purple than done-green. */
+function isAccentNearerThanGreen(
+  r: number,
+  g: number,
+  b: number,
+  accentRgb: [number, number, number],
+  greenRgb: [number, number, number],
+): boolean {
+  const dA = Math.hypot(r - accentRgb[0], g - accentRgb[1], b - accentRgb[2])
+  const dG = Math.hypot(r - greenRgb[0], g - greenRgb[1], b - greenRgb[2])
+  return dA <= dG
+}
+
+/**
+ * Pen-up My-ink finalize: green opaque pixels in done keeps; erase accent-like
+ * outliers outside done ∪ active allow mask (post-pass purple tails).
+ */
+function finalizeMyInkAfterGesture(
+  store: HTMLCanvasElement,
+  visible: HTMLCanvasElement | null,
+  doneKeepBits: Uint8Array,
+  allowBits: Uint8Array,
+  greenHex: string,
+  accentHex: string,
+): void {
+  const ctx = store.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return
+  const width = store.width
+  const height = store.height
+  if (
+    width * height !== doneKeepBits.length ||
+    allowBits.length !== doneKeepBits.length
+  ) {
+    return
+  }
+  let img: ImageData
+  try {
+    img = ctx.getImageData(0, 0, width, height)
+  } catch {
+    return
+  }
+  const data = img.data
+  const greenRgb = parseHexRgb(greenHex)
+  const accentRgb = parseHexRgb(accentHex)
+  const [gr, gg, gb] = greenRgb
+  for (let i = 0; i < doneKeepBits.length; i++) {
+    const o = i * 4
+    if (data[o + 3]! < 8) continue
+    if (doneKeepBits[i]) {
+      data[o] = gr
+      data[o + 1] = gg
+      data[o + 2] = gb
+      continue
+    }
+    if (allowBits[i]) continue
+    if (
+      isAccentNearerThanGreen(
+        data[o]!,
+        data[o + 1]!,
+        data[o + 2]!,
+        accentRgb,
+        greenRgb,
+      )
+    ) {
       data[o] = 0
       data[o + 1] = 0
       data[o + 2] = 0
       data[o + 3] = 0
-      continue
     }
-    data[o] = gr
-    data[o + 1] = gg
-    data[o + 2] = gb
-    // Keep existing alpha so pressure/edge softens stay readable.
   }
   ctx.putImageData(img, 0, 0)
   if (visible) blitCanvas(store, visible)
@@ -736,6 +863,7 @@ export default function TracePad({
   onActiveLevelChange,
   levelPipsHost = null,
   nextCharAction = null,
+  prevCharAction = null,
   onAutoNextCharacter,
 }: TracePadProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -1496,13 +1624,46 @@ export default function TracePad({
 
     // My ink ON: turn this gesture’s ink green (readable) and trim only
     // extreme outliers far from the passed stroke path — keep the silhouette.
+    // Then force-green all done-stroke keep regions so mid-gesture overdraw
+    // after a pass (paintBits already cleared) cannot leave purple tails.
     if (showInk && newlyDone && strokeData) {
       const store = inkStoreRef.current ?? ensureInkStore()
+      // Keep store bitmap in sync with mask/ink canvas (mismatch → silent no-op).
+      if (
+        store &&
+        inkCanvasRef.current &&
+        (store.width !== mask.width || store.height !== mask.height)
+      ) {
+        const ink = inkCanvasRef.current
+        store.width = ink.width
+        store.height = ink.height
+      }
       const paintBits = paintBitsRef.current
+      const cssSize = stageCssSize()
+      const contentCenter = contentCenterFromMedians(strokeData.medians)
+      const unionKeep = new Uint8Array(mask.width * mask.height)
+      const doneFlags =
+        status.strokeDone ??
+        (strokeData.strokes.map(() => false) as boolean[])
+      for (let si = 0; si < doneFlags.length; si++) {
+        if (!doneFlags[si]) continue
+        const path = strokeData.strokes[si] ?? ''
+        const median = mask.mappedStrokes[si] ?? []
+        const strokeKeep = buildStrokeKeepBits(
+          path,
+          median,
+          cssSize,
+          mask.width,
+          mask.height,
+          mask.dpr,
+          contentCenter,
+        )
+        for (let i = 0; i < unionKeep.length; i++) {
+          if (strokeKeep[i]) unionKeep[i] = 1
+        }
+      }
       if (store && paintBits && paintBits.length === mask.width * mask.height) {
-        const cssSize = stageCssSize()
-        const contentCenter = contentCenterFromMedians(strokeData.medians)
-        const keepBits = new Uint8Array(mask.width * mask.height)
+        const freshKeep = new Uint8Array(mask.width * mask.height)
         for (const si of newlyDoneIdxs) {
           const path = strokeData.strokes[si] ?? ''
           const median = mask.mappedStrokes[si] ?? []
@@ -1515,19 +1676,27 @@ export default function TracePad({
             mask.dpr,
             contentCenter,
           )
-          for (let i = 0; i < keepBits.length; i++) {
-            if (strokeKeep[i]) keepBits[i] = 1
+          for (let i = 0; i < freshKeep.length; i++) {
+            if (strokeKeep[i]) freshKeep[i] = 1
           }
         }
         applyMyInkStrokePass(
           store,
           inkCanvasRef.current,
           paintBits,
-          keepBits,
+          freshKeep,
           DONE_STROKE_GREEN,
         )
       }
-      if (newlyDone) gesturePassedStrokeRef.current = true
+      if (store && unionKeep.length === mask.width * mask.height) {
+        recolorDoneKeepsToGreen(
+          store,
+          inkCanvasRef.current,
+          unionKeep,
+          DONE_STROKE_GREEN,
+        )
+      }
+      gesturePassedStrokeRef.current = true
     }
 
     // New active stroke → reset paint-cap accumulator + baseline for retry.
@@ -2089,13 +2258,56 @@ export default function TracePad({
           }
         }
       }
-      // Post-success extra purple from this stroke clears on pen-up, not when
-      // the next stroke finally passes.
-      if (
-        gesturePassedStrokeRef.current &&
-        !showMyStrokesRef.current
-      ) {
-        clearCanvasPixels(inkCanvasRef.current)
+      // Post-success leftover ink on pen-up:
+      // Guide → clear visible purple; My ink → green done keeps and erase
+      // purple outliers outside done ∪ active-stroke keeps (mid-gesture tails).
+      if (gesturePassedStrokeRef.current) {
+        if (!showMyStrokesRef.current) {
+          clearCanvasPixels(inkCanvasRef.current)
+        } else if (strokeData && maskRef.current) {
+          const mask = maskRef.current
+          const store = inkStoreRef.current ?? ensureInkStore()
+          const done =
+            lastStrokeDoneRef.current ?? prevStrokeDoneRef.current
+          if (store && done) {
+            const cssSize = stageCssSize()
+            const contentCenter = contentCenterFromMedians(strokeData.medians)
+            const buildKeep = (si: number) =>
+              buildStrokeKeepBits(
+                strokeData.strokes[si] ?? '',
+                mask.mappedStrokes[si] ?? [],
+                cssSize,
+                mask.width,
+                mask.height,
+                mask.dpr,
+                contentCenter,
+              )
+            const unionKeep = new Uint8Array(mask.width * mask.height)
+            for (let si = 0; si < done.length; si++) {
+              if (!done[si]) continue
+              const strokeKeep = buildKeep(si)
+              for (let i = 0; i < unionKeep.length; i++) {
+                if (strokeKeep[i]) unionKeep[i] = 1
+              }
+            }
+            const active = activeStrokeIndex(done, mask.mappedStrokes.length)
+            const allowBits = new Uint8Array(unionKeep)
+            if (active < mask.mappedStrokes.length) {
+              const activeKeep = buildKeep(active)
+              for (let i = 0; i < allowBits.length; i++) {
+                if (activeKeep[i]) allowBits[i] = 1
+              }
+            }
+            finalizeMyInkAfterGesture(
+              store,
+              inkCanvasRef.current,
+              unionKeep,
+              allowBits,
+              DONE_STROKE_GREEN,
+              accent,
+            )
+          }
+        }
         gesturePassedStrokeRef.current = false
       }
       // Archive completed gesture for Undo (skip if level already passed).
@@ -2127,6 +2339,7 @@ export default function TracePad({
     captureInkSnapshot,
     stampStrokePaint,
     rejectStrokeOverpaint,
+    strokeData,
   ])
 
   const toggleDemoEnabled = () => {
@@ -2299,6 +2512,7 @@ export default function TracePad({
 
   const levelPipsStrip: ReactNode = (
     <div className="level-pips-row">
+      {prevCharAction}
       <div
         className={`level-pips-wrap${pipsOverflow ? ' is-overflow' : ''}`}
         aria-label={`Levels beaten: ${beatenSet.size} of ${levelCount}`}
@@ -2568,11 +2782,19 @@ export default function TracePad({
       >
         <button
           type="button"
-          className={`dock-btn${showMyStrokes ? ' is-on' : ''}`}
+          className={`dock-btn${showMyStrokes ? ' is-on' : ''}${
+            showMyStrokes && charCleared ? ' is-ink-done' : ''
+          }`}
           onClick={toggleShowMyStrokes}
           aria-pressed={showMyStrokes}
           aria-label={showMyStrokes ? 'My ink' : 'Guide'}
-          title={showMyStrokes ? 'My ink' : 'Guide'}
+          title={
+            showMyStrokes
+              ? charCleared
+                ? 'My ink — character cleared'
+                : 'My ink'
+              : 'Guide'
+          }
           disabled={phase !== 'writing' && phase !== 'passed'}
         >
           <span className="dock-btn-icon dock-btn-mode-icon" aria-hidden="true">
