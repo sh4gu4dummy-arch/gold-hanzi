@@ -49,6 +49,13 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-25 — Offline local launcher on port 8045 (v0.047)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `launch-local.py`, `launch-local.sh`, `launch-local.bat`, `version.ts`
+
+Simplest offline launcher in repo root: serves `dist/` on **127.0.0.1:8045** (not 8080) via python stdlib with SPA fallback for `/practice/:id`. Requires prior `npm run build`. Open `http://127.0.0.1:8045/`. Production `base: '/'` unchanged.
+
 ### 2026-09-24 — Prev character arrow + My ink green fix (v0.046)
 
 **Who:** gold-hanzi (repo Grok)  
