@@ -124,6 +124,12 @@ type TracePadProps = {
    */
   prevCharAction?: ReactNode
   /**
+   * Optional next-character control rendered right of the level pips
+   * (Practice: link to next unlocked entry). Distinct from nextCharAction
+   * (post-clear CTA).
+   */
+  nextCharNavAction?: ReactNode
+  /**
    * When Auto next is on and the last level clears, called after the same
    * delay as level auto-advance (Practice: navigate to next character).
    */
@@ -864,6 +870,7 @@ export default function TracePad({
   levelPipsHost = null,
   nextCharAction = null,
   prevCharAction = null,
+  nextCharNavAction = null,
   onAutoNextCharacter,
 }: TracePadProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -2681,6 +2688,7 @@ export default function TracePad({
         ›
       </button>
       </div>
+      {nextCharNavAction}
     </div>
   )
 

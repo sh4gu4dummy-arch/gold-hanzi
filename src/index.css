@@ -476,8 +476,9 @@ h1 {
   padding: 0;
 }
 
-/* Previous character — sits left of level 1 in the pip row (phone chrome). */
-.prev-char-arrow {
+/* Prev/next character — left/right of level pips in the pip row (phone chrome). */
+.prev-char-arrow,
+.next-char-arrow {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -497,11 +498,14 @@ h1 {
   touch-action: manipulation;
 }
 .prev-char-arrow:hover,
-.prev-char-arrow:focus-visible {
+.prev-char-arrow:focus-visible,
+.next-char-arrow:hover,
+.next-char-arrow:focus-visible {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
   outline: none;
 }
-.prev-char-arrow.is-disabled {
+.prev-char-arrow.is-disabled,
+.next-char-arrow.is-disabled {
   opacity: 0.28;
   pointer-events: none;
 }

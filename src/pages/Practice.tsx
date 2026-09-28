@@ -425,6 +425,22 @@ export default function Practice() {
             </span>
           )
         }
+        nextCharNavAction={
+          nextEntry ? (
+            <Link
+              className="next-char-arrow"
+              to={`/practice/${nextEntry.id}`}
+              aria-label={`Next character ${nextEntry.pinyin}`}
+              title={`Next: ${nextEntry.pinyin}`}
+            >
+              ›
+            </Link>
+          ) : (
+            <span className="next-char-arrow is-disabled" aria-hidden="true">
+              ›
+            </span>
+          )
+        }
         nextCharAction={
           finished && allLevelsCleared ? (
             nextEntry ? (

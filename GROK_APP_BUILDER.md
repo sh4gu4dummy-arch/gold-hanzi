@@ -49,6 +49,13 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-28 — Next character right arrow (v0.049)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `TracePad.tsx`, `Practice.tsx`, `index.css`, `version.ts`
+
+- **Next character:** `›` control right of the level-pip strip (portal host), mirroring v0.046 prev `‹`. Links to next unlocked entry (`nextUnlockedEntry`); muted/disabled when none (latest unlocked / next locked). Pinyin-only aria/title (no hanzi spoiler). Prop `nextCharNavAction` (distinct from post-clear `nextCharAction` CTA).
+
 ### 2026-09-28 — Home meta contrast + replay next stroke (v0.048)
 
 **Who:** gold-hanzi (repo Grok)  
