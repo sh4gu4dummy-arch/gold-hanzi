@@ -232,8 +232,9 @@ h1 {
 .char-pinyin {
   font-family: var(--pinyin);
   font-size: 15px;
-  font-weight: 500;
-  color: var(--accent-ink);
+  font-weight: 600;
+  /* Mixed toward --text so dark mode isn't faint purple-on-purple. */
+  color: color-mix(in srgb, var(--accent) 42%, var(--text));
 }
 
 .char-meaning {
@@ -775,7 +776,7 @@ h1 {
   background: color-mix(in srgb, var(--text) 78%, transparent);
   color: var(--surface);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: 0.02em;
   pointer-events: none;
   box-shadow: 0 3px 12px color-mix(in srgb, var(--text) 16%, transparent);
@@ -1134,7 +1135,7 @@ h1 {
   border: 1px solid color-mix(in srgb, #22a06b 32%, var(--line));
   color: color-mix(in srgb, #22a06b 72%, var(--text));
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.2;
   cursor: pointer;
   box-shadow: 0 3px 12px color-mix(in srgb, #22a06b 14%, transparent);
@@ -2491,12 +2492,26 @@ h1 {
 .char-hsk-badge {
   margin-top: 2px;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.04em;
-  color: var(--accent-ink);
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: color-mix(in srgb, var(--accent) 38%, var(--text));
+  background: color-mix(in srgb, var(--accent) 26%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line));
   border-radius: 999px;
   padding: 2px 7px;
+}
+
+
+/* Home tiles: extra contrast on light (darker meta on white tiles). */
+[data-theme='light'] .char-pinyin {
+  color: #45306f;
+  font-weight: 700;
+}
+
+[data-theme='light'] .char-hsk-badge {
+  color: #4a3480;
+  background: color-mix(in srgb, var(--accent) 18%, white);
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--line));
 }
 
 .char-tile-locked {

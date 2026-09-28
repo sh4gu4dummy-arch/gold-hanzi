@@ -49,6 +49,15 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-28 — Home meta contrast + replay next stroke (v0.048)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `TracePad.tsx`, `index.css`, `version.ts`
+
+- **Home tiles:** pinyin + HSK badge contrast — mix accent toward `--text` (dark readable lavender); light theme darker purple + weight. Home tile meta only.
+- **Replay next stroke:** chrome button beside Replay (`▸ Next`) demos only the current target stroke via `hanzi-writer.animateStroke`, keep-progress like full Replay. Writing phase only; hidden when cleared / no next stroke / demo / passed.
+
+
 ### 2026-09-25 — Offline local launcher on port 8045 (v0.047)
 
 **Who:** gold-hanzi (repo Grok)  

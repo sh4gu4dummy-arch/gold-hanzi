@@ -2066,6 +2066,68 @@ export default function TracePad({
     void playDemoKeepProgress(phase)
   }
 
+  /**
+   * Demo only the next incomplete stroke (current target), keeping ink/progress.
+   * Writing phase only — hidden when cleared or no stroke remains.
+   */
+  const playNextStrokeKeepProgress = async () => {
+    const writer = writerRef.current
+    const host = writerHostRef.current
+    if (!writer || !host || !strokeData) return
+    if (phase !== 'writing' || doneRef.current) return
+
+    const strokeCount = strokeData.strokes.length
+    const done =
+      liveGrade?.strokeDone ??
+      lastStrokeDoneRef.current ??
+      prevStrokeDoneRef.current
+    const nextIdx = activeStrokeIndex(done, strokeCount)
+    if (nextIdx < 0 || nextIdx >= strokeCount) return
+
+    const session = ++sessionRef.current
+    demoKeepProgressRef.current = {
+      returnPhase: 'writing',
+      liveGrade,
+      done: doneRef.current,
+      prev: prevStrokeDoneRef.current
+        ? prevStrokeDoneRef.current.slice()
+        : null,
+      last: lastStrokeDoneRef.current
+        ? lastStrokeDoneRef.current.slice()
+        : null,
+    }
+
+    setPhase('demo')
+    host.style.opacity = '1'
+    host.style.pointerEvents = 'none'
+
+    try {
+      writer.cancelQuiz()
+      await writer.hideCharacter()
+      await writer.showOutline()
+      await writer.animateStroke(nextIdx)
+    } catch {
+      // Animation may be cancelled by teardown / skip.
+    }
+    if (sessionRef.current !== session) return
+
+    try {
+      await writer.hideCharacter()
+      await writer.hideOutline()
+    } catch {
+      /* ignore */
+    }
+    if (sessionRef.current !== session) return
+
+    restoreAfterKeepProgressDemo()
+  }
+
+  const replayNextStroke = () => {
+    if (phase !== 'writing' || doneRef.current) return
+    clearAutoAdvance()
+    void playNextStrokeKeepProgress()
+  }
+
   const onClear = () => {
     if (phase !== 'writing' || doneRef.current) return
     clearInkCanvas()
@@ -2482,7 +2544,7 @@ export default function TracePad({
     <div
       className="trace-stage-pair"
       role="group"
-      aria-label="Demo and skip controls"
+      aria-label="Demo and replay controls"
     >
       <button
         type="button"
@@ -2502,11 +2564,27 @@ export default function TracePad({
           onClick={phase === 'demo' ? skipGuide : replayGuide}
           disabled={!!loadError}
           aria-label={phase === 'demo' ? 'Skip demo' : 'Replay'}
-          title={phase === 'demo' ? 'Skip demo' : 'Replay'}
+          title={phase === 'demo' ? 'Skip demo' : 'Replay full character'}
         >
           {phase === 'demo' ? 'Skip' : 'Replay'}
         </button>
       )}
+      {phase === 'writing' &&
+        !doneRef.current &&
+        strokeTotal > 0 &&
+        strokesDone < strokeTotal && (
+          <button
+            type="button"
+            className="trace-pair-btn is-accent"
+            onClick={replayNextStroke}
+            disabled={!!loadError || !strokeData}
+            aria-label="Replay next stroke"
+            title="Demo only the next stroke you still need"
+          >
+            <span aria-hidden="true">▸</span>
+            <span>Next</span>
+          </button>
+        )}
     </div>
   )
 
