@@ -49,6 +49,13 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-09-30 — Current-stroke start marker on hidden levels (v0.050)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `TracePad.tsx`, `version.ts`
+
+- **Start marker:** on levels where stroke path guides are memory-hidden (`fromStroke > 0`: progressive levels 2…N and final memory), show a **very small circled number** only at the **current** stroke’s median start. Advances when that stroke passes; absent on fully-guided level 1, demo, cleared, and My-ink (guide canvas cleared). Does not reveal the full path.
+
 ### 2026-09-28 — Next character right arrow (v0.049)
 
 **Who:** gold-hanzi (repo Grok)  

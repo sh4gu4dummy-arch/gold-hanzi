@@ -548,6 +548,8 @@ function drawStrokeDoneCheck(
  * always show a light-green underlay even when memory-hidden. Markers
  * still follow fromStroke; numbers are true stroke index 1…n.
  * Near-duplicate starts are fanned apart (see layoutGuideMarkers).
+ * On levels with hidden strokes (fromStroke > 0), the current hidden
+ * stroke also gets a tiny start-number at its median origin.
  */
 function drawStrokeGuides(
   ctx: CanvasRenderingContext2D,
@@ -620,6 +622,41 @@ function drawStrokeGuides(
       numFill,
       markColor,
     )
+  }
+
+  // Hidden-level start cue: when the active stroke's path guide is memory-
+  // hidden (level ≥ 2 / final memory), show only a very small circled
+  // number at that stroke's median start — not the full path, and never
+  // on fully-guided level 1 (fromStroke === 0). Advances with activeIdx.
+  if (
+    fromStroke > 0 &&
+    activeIdx < fromStroke &&
+    activeIdx < medians.length &&
+    !strokeDone?.[activeIdx]
+  ) {
+    const median = medians[activeIdx]!
+    const origin = median[0]
+    if (origin && origin.length >= 2) {
+      // ~7–9 CSS px: mobile-readable but subtler than full guide discs.
+      const tinyCss = Math.min(9, Math.max(7, Math.round(cssSize * 0.024)))
+      const tinyU = tinyCss / scale
+      const tangent = earlyMedianTangent(median)
+      const tx = tangent?.x ?? 1
+      const ty = tangent?.y ?? 0
+      // Sit just before the tip so the exact start stays visible ahead.
+      const nx = origin[0]! - tx * (tinyU * 0.55)
+      const ny = origin[1]! - ty * (tinyU * 0.55)
+      drawGuideNumber(
+        ctx,
+        nx,
+        ny,
+        tinyU,
+        scale,
+        activeIdx + 1,
+        hexToRgba(accent, 0.88),
+        accent,
+      )
+    }
   }
 
   // Tiny green ✓ just past each completed stroke tip (outside the path).
