@@ -47,6 +47,10 @@ import {
   getAutoNextLevel,
   setAutoNextLevel,
 } from '../lib/autoNextPref'
+import {
+  getAutoHelpEnabled,
+  setAutoHelpEnabled,
+} from '../lib/autoHelpPref'
 import { getSoundEnabled, setSoundEnabled } from '../lib/soundPref'
 import { cancelSpeech, speakHanzi } from '../lib/speak'
 import type { SpeakResult } from '../lib/speak'
@@ -560,6 +564,8 @@ function drawStrokeGuides(
   fromStroke: number,
   accent: string,
   strokeDone?: boolean[] | null,
+  /** Auto help @3: direction arrow on memory-hidden active stroke. */
+  showHelpArrow?: boolean,
 ): void {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, cssSize, cssSize)
@@ -656,6 +662,19 @@ function drawStrokeGuides(
         hexToRgba(accent, 0.88),
         accent,
       )
+      // Auto help: after enough fails, reveal direction without the full path.
+      if (showHelpArrow && tangent) {
+        drawGuideArrow(
+          ctx,
+          origin[0]!,
+          origin[1]!,
+          tx,
+          ty,
+          tinyU * 1.15,
+          scale,
+          accent,
+        )
+      }
     }
   }
 
@@ -943,6 +962,15 @@ export default function TracePad({
   const tryAgainTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const demoEnabledRef = useRef(getDemoEnabled())
   const autoNextLevelRef = useRef(getAutoNextLevel())
+  const autoHelpEnabledRef = useRef(getAutoHelpEnabled())
+  /** Failures on the current target stroke (pen-up miss or paint-cap reject). */
+  const strokeFailCountRef = useRef(0)
+  /** Auto-replay at 5 fires once per stroke until reset. */
+  const autoHelpReplayFiredRef = useRef(false)
+  /** Late-bound: playNextStrokeKeepProgress for auto-help @5. */
+  const playNextStrokeKeepProgressRef = useRef<(() => Promise<void>) | null>(
+    null,
+  )
   const onAutoNextCharacterRef = useRef(onAutoNextCharacter)
   /** When set, demo/skip restores writing/passed progress instead of wiping. */
   const demoKeepProgressRef = useRef<{
@@ -1009,6 +1037,9 @@ export default function TracePad({
   const [autoNextLevel, setAutoNextLevelState] = useState(() =>
     getAutoNextLevel(),
   )
+  const [autoHelpEnabled, setAutoHelpEnabledState] = useState(() =>
+    getAutoHelpEnabled(),
+  )
   const [soundEnabled, setSoundEnabledState] = useState(() => getSoundEnabled())
   const [voiceNote, setVoiceNote] = useState<string | null>(null)
   /** Short pad toast: “try again” (paint-cap) or “do stroke X first”. */
@@ -1026,6 +1057,7 @@ export default function TracePad({
   showMyStrokesRef.current = showMyStrokes
   demoEnabledRef.current = demoEnabled
   autoNextLevelRef.current = autoNextLevel
+  autoHelpEnabledRef.current = autoHelpEnabled
   onAutoNextCharacterRef.current = onAutoNextCharacter
 
   /** Apply speak result: clear note on success; only warn when speak truly fails. */
@@ -1199,6 +1231,8 @@ export default function TracePad({
       // Level 1: all guides. Level k (2..strokeCount): hide 0..(k-2).
       // Final level strokeCount+1: fromStroke === strokeCount → no incomplete guides.
       const fromStroke = levelNum <= 1 ? 0 : levelNum - 1
+      const showHelpArrow =
+        autoHelpEnabledRef.current && strokeFailCountRef.current >= 3
       drawStrokeGuides(
         ctx,
         cssSize,
@@ -1208,10 +1242,46 @@ export default function TracePad({
         fromStroke,
         accent,
         strokeDone,
+        showHelpArrow,
       )
     },
     [accent, strokeData],
   )
+
+  const resetStrokeFailCount = useCallback(() => {
+    strokeFailCountRef.current = 0
+    autoHelpReplayFiredRef.current = false
+  }, [])
+
+  /**
+   * Record a failed attempt on the current stroke. Auto help ON:
+   * fails ≥ 3 → guide direction arrow (memory-hidden strokes);
+   * fails ≥ 5 → auto-replay current stroke once (same as ▸ Next).
+   */
+  const recordStrokeFail = useCallback(() => {
+    if (phaseRef.current !== 'writing' || doneRef.current) return
+    const next = strokeFailCountRef.current + 1
+    strokeFailCountRef.current = next
+
+    if (!autoHelpEnabledRef.current) return
+
+    if (next === 3 && !showMyStrokesRef.current) {
+      const done =
+        lastStrokeDoneRef.current ?? prevStrokeDoneRef.current
+      paintGuide(levelRef.current, done)
+    }
+
+    if (next >= 5 && !autoHelpReplayFiredRef.current) {
+      autoHelpReplayFiredRef.current = true
+      // Defer so we finish the pointer/reject path before entering demo.
+      window.setTimeout(() => {
+        if (!autoHelpEnabledRef.current) return
+        if (phaseRef.current !== 'writing' || doneRef.current) return
+        clearAutoAdvance()
+        void playNextStrokeKeepProgressRef.current?.()
+      }, 0)
+    }
+  }, [clearAutoAdvance, paintGuide])
 
   const rebuildMask = useCallback(async () => {
     const wrap = wrapRef.current
@@ -1414,6 +1484,7 @@ export default function TracePad({
 
   const clearInkCanvas = useCallback(() => {
     resetGestureHistory()
+    resetStrokeFailCount()
     clearCanvasPixels(inkCanvasRef.current)
     clearCanvasPixels(inkStoreRef.current)
     prevStrokeDoneRef.current = null
@@ -1444,7 +1515,7 @@ export default function TracePad({
         clearGuideCanvas(guideCanvasRef.current)
       }
     }
-  }, [clearPaintBits, paintGuide, resetGestureHistory])
+  }, [clearPaintBits, paintGuide, resetGestureHistory, resetStrokeFailCount])
 
   const hideWriterHost = useCallback(() => {
     const host = writerHostRef.current
@@ -1744,14 +1815,24 @@ export default function TracePad({
     }
 
     // New active stroke → reset paint-cap accumulator + baseline for retry.
-    if (newlyDone && !status.pass) {
-      captureStrokeBaseline()
+    if (newlyDone) {
+      resetStrokeFailCount()
+      if (!status.pass) {
+        captureStrokeBaseline()
+      }
     }
 
     if (status.pass) {
       finishPass()
     }
-  }, [captureStrokeBaseline, ensureInkStore, finishPass, paintGuide, strokeData])
+  }, [
+    captureStrokeBaseline,
+    ensureInkStore,
+    finishPass,
+    paintGuide,
+    resetStrokeFailCount,
+    strokeData,
+  ])
 
   const runDemoThenWrite = useCallback(
     async (levelNum: number) => {
@@ -1770,6 +1851,7 @@ export default function TracePad({
       showMyStrokesRef.current = false
       prevStrokeDoneRef.current = null
       gesturePassedStrokeRef.current = false
+      resetStrokeFailCount()
 
       resizeCanvases()
       clearInkCanvas()
@@ -1811,9 +1893,11 @@ export default function TracePad({
     [
       clearAutoAdvance,
       clearInkCanvas,
+      clearInkCanvas,
       enterWritingAfterDemo,
       hideWriterHost,
       maybeSpeak,
+      resetStrokeFailCount,
       resizeCanvases,
       strokeData,
     ],
@@ -2166,6 +2250,8 @@ export default function TracePad({
     restoreAfterKeepProgressDemo()
   }
 
+  playNextStrokeKeepProgressRef.current = playNextStrokeKeepProgress
+
   const replayNextStroke = () => {
     if (phase !== 'writing' || doneRef.current) return
     clearAutoAdvance()
@@ -2187,6 +2273,13 @@ export default function TracePad({
     setGestureCount(stack.length)
     const prev = stack.length > 0 ? stack[stack.length - 1]! : null
     applyInkSnapshot(prev)
+    // Undo may restore prior stroke progress — drop fail streak.
+    resetStrokeFailCount()
+    if (!showMyStrokesRef.current) {
+      const done =
+        lastStrokeDoneRef.current ?? prevStrokeDoneRef.current
+      paintGuide(levelRef.current, done)
+    }
   }
 
   useEffect(() => {
@@ -2236,8 +2329,9 @@ export default function TracePad({
       } else {
         showPadToast('try again')
       }
+      recordStrokeFail()
     },
-    [applyInkSnapshot, clearPaintBits, showPadToast],
+    [applyInkSnapshot, clearPaintBits, recordStrokeFail, showPadToast],
   )
 
   /** Stamp grading ink + paint-coverage; return true if 150% cap tripped. */
@@ -2367,7 +2461,8 @@ export default function TracePad({
       // Post-success leftover ink on pen-up:
       // Guide → clear visible purple; My ink → green done keeps and erase
       // purple outliers outside done ∪ active-stroke keeps (mid-gesture tails).
-      if (gesturePassedStrokeRef.current) {
+      const passedThisGesture = gesturePassedStrokeRef.current
+      if (passedThisGesture) {
         if (!showMyStrokesRef.current) {
           clearCanvasPixels(inkCanvasRef.current)
         } else if (strokeData && maskRef.current) {
@@ -2415,6 +2510,9 @@ export default function TracePad({
           }
         }
         gesturePassedStrokeRef.current = false
+      } else if (!doneRef.current) {
+        // Pen-up without completing the target stroke counts as a fail.
+        recordStrokeFail()
       }
       // Archive completed gesture for Undo (skip if level already passed).
       if (!doneRef.current) {
@@ -2445,6 +2543,7 @@ export default function TracePad({
     captureInkSnapshot,
     stampStrokePaint,
     rejectStrokeOverpaint,
+    recordStrokeFail,
     strokeData,
   ])
 
@@ -2453,6 +2552,34 @@ export default function TracePad({
     setDemoEnabled(next)
     setDemoEnabledState(next)
     demoEnabledRef.current = next
+  }
+
+  const toggleAutoHelpEnabled = () => {
+    const next = !autoHelpEnabledRef.current
+    setAutoHelpEnabled(next)
+    setAutoHelpEnabledState(next)
+    autoHelpEnabledRef.current = next
+    // Refresh guide arrow for memory-hidden strokes; maybe catch-up replay.
+    if (!showMyStrokesRef.current && phaseRef.current === 'writing') {
+      const done =
+        lastStrokeDoneRef.current ?? prevStrokeDoneRef.current
+      paintGuide(levelRef.current, done)
+    }
+    if (
+      next &&
+      strokeFailCountRef.current >= 5 &&
+      !autoHelpReplayFiredRef.current &&
+      phaseRef.current === 'writing' &&
+      !doneRef.current
+    ) {
+      autoHelpReplayFiredRef.current = true
+      window.setTimeout(() => {
+        if (!autoHelpEnabledRef.current) return
+        if (phaseRef.current !== 'writing' || doneRef.current) return
+        clearAutoAdvance()
+        void playNextStrokeKeepProgressRef.current?.()
+      }, 0)
+    }
   }
 
   const toggleAutoNextLevel = () => {
@@ -2613,6 +2740,21 @@ export default function TracePad({
           {phase === 'demo' ? 'Skip' : 'Replay'}
         </button>
       )}
+      <button
+        type="button"
+        className={`trace-pair-btn${autoHelpEnabled ? ' is-on' : ''}`}
+        onClick={toggleAutoHelpEnabled}
+        aria-pressed={autoHelpEnabled}
+        aria-label={autoHelpEnabled ? 'Auto help on' : 'Auto help off'}
+        title={
+          autoHelpEnabled
+            ? 'Auto help: arrow after 3 fails, stroke replay after 5'
+            : 'Auto help off'
+        }
+      >
+        <span aria-hidden="true">{autoHelpEnabled ? '▶' : '⏸'}</span>
+        <span>{autoHelpEnabled ? 'Auto help on' : 'Auto help off'}</span>
+      </button>
       {phase === 'writing' &&
         !doneRef.current &&
         strokeTotal > 0 &&

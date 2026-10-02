@@ -49,6 +49,13 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-10-02 — Auto help toggle (v0.051)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `TracePad.tsx`, `autoHelpPref.ts`, `version.ts`
+
+- **Auto help:** chrome toggle next to Replay (localStorage `chinese-trace:auto-help-enabled:v1`, default on). ON = solid purple like Demo/Replay. Per current-stroke fail count (pen-up miss or paint-cap reject): **@3** show guide direction arrow on memory-hidden strokes; **@5** auto-replay that stroke (`animateStroke`, same as ▸ Next). OFF = no auto help. Fail count resets on stroke pass, level/character change, clear, undo.
+
 ### 2026-09-30 — Current-stroke start marker on hidden levels (v0.050)
 
 **Who:** gold-hanzi (repo Grok)  
