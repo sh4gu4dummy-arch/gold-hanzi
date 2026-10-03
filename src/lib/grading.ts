@@ -2,8 +2,12 @@
 
 /** Fat-mask cover threshold — informational only; does NOT gate pass. */
 export const COVER_THRESHOLD = 0.5
-/** Fallback ink width (CSS px). Prefer inkWidthCss() for draw + stamp. */
-export const INK_WIDTH = 18
+/**
+ * Fallback visual ink width (CSS px). Prefer inkWidthCss() for the pen.
+ * Grading stamps use gradingInkWidthCss() so a thicker pen does not widen
+ * the pass corridor.
+ */
+export const INK_WIDTH = 30
 export const GRID_COLS = 3
 export const GRID_ROWS = 3
 export const CELL_MIN_SHARE = 0.04
@@ -17,7 +21,23 @@ export const STROKE_COVER = 0.58
  */
 export const STROKE_END_T = 0.90
 /**
- * Lateral hit radius as a multiple of inkWidthCss (device px via dpr).
+ * Arc-length t at/below which the hit radius is the soft tip (start).
+ * Body samples stay on the original corridor.
+ */
+export const STROKE_START_SOFT_T = 0.22
+/**
+ * Arc-length t at/above which the hit radius is the soft tip (end).
+ * Matches the end band so only the tip, not the whole stroke, is looser.
+ */
+export const STROKE_END_SOFT_T = 0.90
+/**
+ * Tip hit radius as a multiple of the body corridor radius.
+ * Freer start/end placement without widening the middle pass corridor.
+ */
+export const STROKE_TIP_RADIUS_FACTOR = 2.15
+/**
+ * Lateral hit radius as a multiple of gradingInkWidthCss (device px via dpr).
+ * Tied to the pre-thickness grading ink, not the fatter visual pen.
  * Slightly tighter than 0.55 so neighbor ink is less likely to clear another stroke.
  */
 export const STROKE_HIT_INK_FACTOR = 0.48
@@ -43,11 +63,23 @@ export const HANZI_Y_MAX = 900
 export const HANZI_BOUNDS_CENTER_Y = (HANZI_Y_MIN + HANZI_Y_MAX) / 2
 
 /**
- * Responsive ink width in CSS px for TracePad stroke + grading stamp.
- * ≈ clamp(16px, 4vw, 22px) — ~18 on phones, up to ~22 on larger screens.
+ * Visual pen width in CSS px. Noticeably fatter than the grading corridor
+ * so the stroke is easier to see and cover on a phone.
+ * ≈ clamp(28px, 7.2vw, 38px).
  */
 export function inkWidthCss(): number {
   if (typeof window === 'undefined') return INK_WIDTH
+  const vwBased = window.innerWidth * 0.072
+  return Math.round(Math.min(38, Math.max(28, vwBased)))
+}
+
+/**
+ * Ink width that defines the pass corridor (CSS px). Frozen at the
+ * pre-thickness size so a fatter pen does not loosen the whole stroke.
+ * ≈ clamp(16px, 4vw, 22px).
+ */
+export function gradingInkWidthCss(): number {
+  if (typeof window === 'undefined') return 18
   const vwBased = window.innerWidth * 0.04
   return Math.round(Math.min(22, Math.max(16, vwBased)))
 }
@@ -105,9 +137,26 @@ export type GradeStatus = {
   pass: boolean
 }
 
-/** Hit radius in device pixels for median-sample proximity checks. */
+/** Body-corridor hit radius in device pixels (not the visual pen width). */
 export function strokeHitRadius(dpr: number): number {
-  return Math.max(8, Math.round(inkWidthCss() * STROKE_HIT_INK_FACTOR * dpr))
+  return Math.max(8, Math.round(gradingInkWidthCss() * STROKE_HIT_INK_FACTOR * dpr))
+}
+
+/** Grading stamp radius in device pixels (half the frozen corridor ink). */
+export function gradingStampRadiusDevice(dpr: number): number {
+  return (gradingInkWidthCss() / 2) * dpr
+}
+
+/**
+ * Hit radius for one median sample. Start/end tips are softer; the body
+ * stays on strokeHitRadius so the pass corridor does not widen.
+ */
+export function strokeSampleHitRadius(dpr: number, t: number): number {
+  const body = strokeHitRadius(dpr)
+  if (t <= STROKE_START_SOFT_T + 1e-9 || t >= STROKE_END_SOFT_T - 1e-9) {
+    return Math.max(body + 1, Math.round(body * STROKE_TIP_RADIUS_FACTOR))
+  }
+  return body
 }
 
 /** Live TracePad copy — learner language (no regions/cover pass-blocker). */
@@ -563,7 +612,7 @@ export function stampInk(
   mask: LetterMask,
   cssX: number,
   cssY: number,
-  radiusCss = inkWidthCss() / 2,
+  radiusCss = gradingInkWidthCss() / 2,
 ): void {
   const { width, height, dpr, letterBits, inkBits, cellLetter, cellInk } = mask
   const cx = cssX * dpr
@@ -907,12 +956,11 @@ export function strokeMeetsPassCriteria(
   if (!stroke) return false
   const samples = sampleStroke(stroke)
   if (samples.length === 0) return true
-  const rad = strokeHitRadius(mask.dpr)
   let hits = 0
   let endSamples = 0
   let endHits = 0
   for (const p of samples) {
-    const hit = inkNear(mask, p.x, p.y, rad)
+    const hit = inkNear(mask, p.x, p.y, strokeSampleHitRadius(mask.dpr, p.t))
     if (hit) hits++
     if (p.t >= STROKE_END_T - 1e-9) {
       endSamples++
@@ -976,7 +1024,6 @@ export function evaluateGrade(
     }
   }
 
-  const rad = strokeHitRadius(mask.dpr)
   let strokesReady = true
   let needsFollow = false
   let needsFinish = false
@@ -1012,7 +1059,7 @@ export function evaluateGrade(
     let endSamples = 0
     let endHits = 0
     for (const p of samples) {
-      const hit = inkNear(mask, p.x, p.y, rad)
+      const hit = inkNear(mask, p.x, p.y, strokeSampleHitRadius(mask.dpr, p.t))
       if (hit) hits++
       if (p.t >= STROKE_END_T - 1e-9) {
         endSamples++
@@ -1057,4 +1104,252 @@ export function evaluateGrade(
     needsFinish,
     pass: strokesReady,
   }
+}
+
+export type LiveStrokeTracker = {
+  /** Last accepted arc-length along the active median, or null before the start locks. */
+  cursorT: number | null
+}
+
+export function freshLiveStrokeTracker(): LiveStrokeTracker {
+  return { cursorT: null }
+}
+
+type MedianPoly = { pts: Point[]; cum: number[]; total: number }
+
+function medianPoly(median: Point[]): MedianPoly | null {
+  if (median.length === 0) return null
+  const cum = [0]
+  for (let i = 1; i < median.length; i++) {
+    const len = Math.hypot(
+      median[i]!.x - median[i - 1]!.x,
+      median[i]!.y - median[i - 1]!.y,
+    )
+    cum.push(cum[i - 1]! + len)
+  }
+  return { pts: median, cum, total: cum[cum.length - 1]! }
+}
+
+function closestOnMedian(
+  poly: MedianPoly,
+  x: number,
+  y: number,
+  t0: number,
+  t1: number,
+): { t: number; dist: number } {
+  if (poly.pts.length === 1 || poly.total < 1e-6) {
+    const p = poly.pts[0]!
+    return { t: 0, dist: Math.hypot(p.x - x, p.y - y) }
+  }
+  const a0 = Math.min(poly.total, Math.max(0, t0 * poly.total))
+  const a1 = Math.min(poly.total, Math.max(0, t1 * poly.total))
+  let bestD = Infinity
+  let bestT = t0
+  for (let i = 1; i < poly.pts.length; i++) {
+    const s0 = poly.cum[i - 1]!
+    const s1 = poly.cum[i]!
+    if (s1 < a0 || s0 > a1) continue
+    const a = poly.pts[i - 1]!
+    const b = poly.pts[i]!
+    const vx = b.x - a.x
+    const vy = b.y - a.y
+    const segLen = s1 - s0
+    const segLen2 = vx * vx + vy * vy
+    let u = segLen2 < 1e-9 ? 0 : ((x - a.x) * vx + (y - a.y) * vy) / segLen2
+    const uMin = segLen < 1e-9 ? 0 : (Math.max(s0, a0) - s0) / segLen
+    const uMax = segLen < 1e-9 ? 0 : (Math.min(s1, a1) - s0) / segLen
+    if (u < uMin) u = uMin
+    if (u > uMax) u = uMax
+    const px = a.x + vx * u
+    const py = a.y + vy * u
+    const d = Math.hypot(px - x, py - y)
+    if (d < bestD) {
+      bestD = d
+      bestT = (s0 + segLen * u) / poly.total
+    }
+  }
+  return { t: bestT, dist: bestD }
+}
+
+/** How far a grading-ink center may sit from the median and still "cover" it. */
+function liveAcceptRadius(dpr: number, t: number, locked: boolean): number {
+  const base = strokeSampleHitRadius(dpr, t) + gradingStampRadiusDevice(dpr)
+  // Once the gesture has locked onto the stroke, stay green through the
+  // small wobble of a real finger. The lock itself uses the pass corridor.
+  return locked ? base * 1.28 : base
+}
+
+const LIVE_BACKTRACK = 0.06
+/** Per-sample forward window. Samples are a few pixels apart, so this is not a flick cap. */
+const LIVE_FORWARD = 0.55
+/** Clearly outside the corridor — not a flicker, must stay accent. */
+const LIVE_HARD_OFF_FACTOR = 1.7
+
+export type LiveHit = {
+  /** Continues the correct forward stroke. */
+  on: boolean
+  /** Wrong direction or far off the median. Coalesce must not paint this green. */
+  hardOff: boolean
+}
+
+function tangentAt(poly: MedianPoly, t: number): Point | null {
+  if (poly.pts.length < 2 || poly.total < 1e-6) return null
+  const target = Math.min(poly.total, Math.max(0, t * poly.total))
+  for (let i = 1; i < poly.pts.length; i++) {
+    const s1 = poly.cum[i]!
+    if (target > s1 + 1e-6 && i < poly.pts.length - 1) continue
+    const a = poly.pts[i - 1]!
+    const b = poly.pts[i]!
+    const len = Math.hypot(b.x - a.x, b.y - a.y)
+    if (len < 1e-6) continue
+    return { x: (b.x - a.x) / len, y: (b.y - a.y) / len }
+  }
+  return null
+}
+
+function movementIsBackward(
+  poly: MedianPoly,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  t: number,
+  dpr: number,
+): boolean {
+  const dx = x1 - x0
+  const dy = y1 - y0
+  const len = Math.hypot(dx, dy)
+  if (len < Math.max(1, dpr * 0.85)) return false
+  const tan = tangentAt(poly, t)
+  if (!tan) return false
+  const dot = (dx * tan.x + dy * tan.y) / len
+  return dot < -0.2
+}
+
+/**
+ * Follow one user sample (device px, same space as mapped medians).
+ * Locks only near the start, then only moves forward along the median.
+ * Off the corridor or backward → on false, and the cursor does not retreat.
+ */
+export function trackLiveStrokePoint(
+  median: Point[],
+  x: number,
+  y: number,
+  dpr: number,
+  tracker: LiveStrokeTracker,
+  prevX?: number,
+  prevY?: number,
+): LiveHit {
+  const off: LiveHit = { on: false, hardOff: false }
+  const poly = medianPoly(median)
+  if (!poly) return { on: false, hardOff: true }
+  if (
+    tracker.cursorT != null &&
+    prevX != null &&
+    prevY != null &&
+    movementIsBackward(poly, prevX, prevY, x, y, tracker.cursorT, dpr)
+  ) {
+    return { on: false, hardOff: true }
+  }
+  if (tracker.cursorT == null) {
+    const hit = closestOnMedian(poly, x, y, 0, STROKE_START_SOFT_T + 0.04)
+    if (hit.dist <= liveAcceptRadius(dpr, hit.t, false)) {
+      tracker.cursorT = hit.t
+      return { on: true, hardOff: false }
+    }
+    return off
+  }
+  const prev = tracker.cursorT
+  const hit = closestOnMedian(
+    poly,
+    x,
+    y,
+    Math.max(0, prev - LIVE_BACKTRACK),
+    Math.min(1, prev + LIVE_FORWARD),
+  )
+  const rad = liveAcceptRadius(dpr, hit.t, true)
+  if (hit.dist <= rad) {
+    tracker.cursorT = Math.max(prev, hit.t)
+    return { on: true, hardOff: false }
+  }
+  return { on: false, hardOff: hit.dist > rad * LIVE_HARD_OFF_FACTOR }
+}
+
+/**
+ * Walk a user segment (device px). Green only when the segment starts on the
+ * stroke and never leaves it, so an off-path approach stays accent while a
+ * correct continuation stays green for the whole segment.
+ */
+export function trackLiveStrokeSegment(
+  median: Point[],
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  dpr: number,
+  tracker: LiveStrokeTracker,
+): LiveHit {
+  const dist = Math.hypot(x1 - x0, y1 - y0)
+  const step = Math.max(4 * dpr, 1)
+  const steps = Math.max(1, Math.ceil(dist / step))
+  let on = true
+  let hardOff = false
+  let prevX = x0
+  let prevY = y0
+  for (let s = 0; s <= steps; s++) {
+    const u = s / steps
+    const x = x0 + (x1 - x0) * u
+    const y = y0 + (y1 - y0) * u
+    const hit = trackLiveStrokePoint(median, x, y, dpr, tracker, prevX, prevY)
+    if (!hit.on) on = false
+    if (hit.hardOff) hardOff = true
+    prevX = x
+    prevY = y
+  }
+  return { on: on && !hardOff, hardOff }
+}
+
+/**
+ * Classify a pen-down gesture (device px) against one stroke median.
+ * While the pen is still on that stroke, every sample from the lock through
+ * the current point is on — the whole correct gesture, not a one-dab flash.
+ * A hard off-path or wrong-direction sample stays off so it can be drawn accent.
+ */
+export function classifyLiveGesture(
+  median: Point[],
+  points: Point[],
+  dpr: number,
+): boolean[] {
+  const tracker = freshLiveStrokeTracker()
+  const on: boolean[] = []
+  const hard: boolean[] = []
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i]!
+    const hit =
+      i === 0
+        ? trackLiveStrokePoint(median, p.x, p.y, dpr, tracker)
+        : trackLiveStrokeSegment(
+            median,
+            points[i - 1]!.x,
+            points[i - 1]!.y,
+            p.x,
+            p.y,
+            dpr,
+            tracker,
+          )
+    on.push(hit.on)
+    hard.push(hit.hardOff)
+  }
+  const last = on.length - 1
+  if (last >= 0 && on[last] && !hard[last]) {
+    const lock = on.findIndex(Boolean)
+    if (lock >= 0) {
+      let blocked = false
+      for (let i = lock; i < on.length; i++) {
+        if (hard[i]) blocked = true
+        if (!blocked) on[i] = true
+      }
+    }
+  }
+  return on
 }

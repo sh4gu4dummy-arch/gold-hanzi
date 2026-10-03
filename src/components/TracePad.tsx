@@ -27,6 +27,7 @@ import {
   earlyMedianTangent,
   evaluateGrade,
   hanziScale,
+  classifyLiveGesture,
   inkWidthCss,
   outOfOrderRequiredStroke,
   paintCapExceeded,
@@ -86,19 +87,20 @@ type CharCelebrate = {
 const CELEBRATE_COLORS = ['#22a06b', '#3dcf8e', '#a78bfa', '#c4b5fd', '#9b7fd4']
 
 function makeCelebrateDots(): CelebrateDot[] {
-  const n = 12 + Math.floor(Math.random() * 7) // 12–18
+  // Larger, still-soft burst so it reads on a phone pad (was ~12–18 dots at 4–8px).
+  const n = 22 + Math.floor(Math.random() * 9) // 22–30
   const dots: CelebrateDot[] = []
   for (let i = 0; i < n; i++) {
-    const angle = (Math.PI * 2 * i) / n + (Math.random() - 0.5) * 0.45
-    const dist = 22 + Math.random() * 38 // % of pad
+    const angle = (Math.PI * 2 * i) / n + (Math.random() - 0.5) * 0.4
+    const dist = 18 + Math.random() * 30 // % of pad; stay mostly on-stage
     dots.push({
       id: i,
       dx: `${(Math.cos(angle) * dist).toFixed(1)}%`,
       dy: `${(Math.sin(angle) * dist).toFixed(1)}%`,
       color: CELEBRATE_COLORS[i % CELEBRATE_COLORS.length]!,
-      size: 4 + Math.random() * 4,
-      delay: Math.random() * 50,
-      duration: 400 + Math.random() * 100,
+      size: 16 + Math.random() * 16, // 16–32px
+      delay: Math.random() * 90,
+      duration: 700 + Math.random() * 280,
     })
   }
   return dots
@@ -185,13 +187,22 @@ function hexToRgba(hex: string, alpha: number): string {
 }
 
 /**
- * CSS-px marker size mapped into hanzi space (10–14px, readable on phones).
+ * Shared CSS size for the current-stroke number disc AND the direction
+ * arrow. `u` is that size in hanzi units: disc diameter = arrow length.
+ * ~10% of the pad, clamped 32–44px (up from the old 10–14px discs / ~26px
+ * arrows) so both read on a phone and match each other.
  * Under applyHanziTransform, 1 hanzi unit = hanziScale(cssSize) CSS px.
  */
 function markerSizeHanzi(cssSize: number): { u: number; scale: number } {
   const scale = Math.max(hanziScale(cssSize), 1e-9)
-  const cssPx = Math.min(14, Math.max(10, Math.round(cssSize * 0.038)))
+  const cssPx = Math.min(44, Math.max(32, Math.round(cssSize * 0.1)))
   return { u: cssPx / scale, scale }
+}
+
+/** Legacy small size for the completed-stroke check only (not the markers). */
+function doneCheckSizeHanzi(cssSize: number, scale: number): number {
+  const cssPx = Math.min(14, Math.max(10, Math.round(cssSize * 0.038)))
+  return cssPx / scale
 }
 
 /**
@@ -211,12 +222,14 @@ function drawGuideArrow(
   scale: number,
   color: string,
 ): void {
-  // Visual size ≈ marker css px (10–14): ~22px long, ~12px-wide head.
-  const inset = u * 0.4
-  const len = u * 1.85
-  const headLen = u * 0.86
-  const headHalf = u * 0.5
-  const shaftHalf = u * 0.155
+  // `u` is the shared marker size (disc diameter = arrow length).
+  // Shape ratios stay those of the previous arrow, which was 1.85× the disc.
+  const s = u / 1.85
+  const inset = s * 0.4
+  const len = u
+  const headLen = s * 0.86
+  const headHalf = s * 0.5
+  const shaftHalf = s * 0.155
 
   const ax = ox + tx * inset
   const ay = oy + ty * inset
@@ -242,13 +255,32 @@ function drawGuideArrow(
   ctx.lineJoin = 'round'
   ctx.fillStyle = color
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.82)'
-  ctx.lineWidth = Math.max(2 / scale, u * 0.09)
+  ctx.lineWidth = Math.max(2 / scale, s * 0.09)
   ctx.fill()
   ctx.stroke()
   ctx.restore()
 }
 
-/** Nominal circled-number center: back along tangent + left (y-up). */
+/**
+ * Circled-number center, just beside the stroke start (hanzi y-up).
+ *
+ * Direction-aware: `back` is opposite the unit tangent (behind the tip,
+ * so the start and arrow stay visible) and `side` is to the left of
+ * travel. Same fractions for left / right / up / down / diagonal.
+ *
+ * Disc radius is 0.5·u. Center is hypot(back, side) = ~0.64·u from the
+ * tip, so the rim clears the start by ~0.14·u — beside it, not on it.
+ *
+ * The previous nudge was much larger, and the shared 32–44px size made
+ * the empty gap obvious on every stroke:
+ *   guided markers: 0.52·u back + 0.78·u side (rim ~0.44·u from the tip)
+ *   hidden-level cue: 0.55·u straight back, no side (digit a full
+ *     half-disc left of a rightward start, and the same gap rotated
+ *     for every other direction)
+ */
+const NUMBER_BACK_FRAC = 0.16
+const NUMBER_SIDE_FRAC = 0.62
+
 function nominalNumberCenter(
   ox: number,
   oy: number,
@@ -259,8 +291,8 @@ function nominalNumberCenter(
   const px = -ty
   const py = tx
   return {
-    x: ox - tx * (u * 0.52) + px * (u * 0.78),
-    y: oy - ty * (u * 0.52) + py * (u * 0.78),
+    x: ox - tx * (u * NUMBER_BACK_FRAC) + px * (u * NUMBER_SIDE_FRAC),
+    y: oy - ty * (u * NUMBER_BACK_FRAC) + py * (u * NUMBER_SIDE_FRAC),
   }
 }
 
@@ -553,7 +585,7 @@ function drawStrokeDoneCheck(
  * still follow fromStroke; numbers are true stroke index 1…n.
  * Near-duplicate starts are fanned apart (see layoutGuideMarkers).
  * On levels with hidden strokes (fromStroke > 0), the current hidden
- * stroke also gets a tiny start-number at its median origin.
+ * stroke gets the same-size start number (and help arrow) as guided markers.
  */
 function drawStrokeGuides(
   ctx: CanvasRenderingContext2D,
@@ -597,6 +629,12 @@ function drawStrokeGuides(
         : isActive
           ? hexToRgba(accent, 0.34)
           : faintFill
+      // Halo in CSS px (transform scale is hanzi→css) so thin strokes read on a phone.
+      ctx.lineJoin = 'round'
+      ctx.lineCap = 'round'
+      ctx.lineWidth = 9 / scale
+      ctx.strokeStyle = ctx.fillStyle
+      ctx.stroke(path)
       ctx.fill(path)
     } catch {
       // Ignore malformed path segments.
@@ -631,9 +669,10 @@ function drawStrokeGuides(
   }
 
   // Hidden-level start cue: when the active stroke's path guide is memory-
-  // hidden (level ≥ 2 / final memory), show only a very small circled
-  // number at that stroke's median start — not the full path, and never
-  // on fully-guided level 1 (fromStroke === 0). Advances with activeIdx.
+  // hidden (level ≥ 2 / final memory), show the same-size circled number
+  // (and, with auto-help, the matching direction arrow) at that stroke's
+  // median start — not the full path, and never on fully-guided level 1
+  // (fromStroke === 0). Advances with activeIdx.
   if (
     fromStroke > 0 &&
     activeIdx < fromStroke &&
@@ -643,20 +682,18 @@ function drawStrokeGuides(
     const median = medians[activeIdx]!
     const origin = median[0]
     if (origin && origin.length >= 2) {
-      // ~7–9 CSS px: mobile-readable but subtler than full guide discs.
-      const tinyCss = Math.min(9, Math.max(7, Math.round(cssSize * 0.024)))
-      const tinyU = tinyCss / scale
+      // Same size as the guided number disc / direction arrow (not a smaller cue).
       const tangent = earlyMedianTangent(median)
       const tx = tangent?.x ?? 1
       const ty = tangent?.y ?? 0
-      // Sit just before the tip so the exact start stays visible ahead.
-      const nx = origin[0]! - tx * (tinyU * 0.55)
-      const ny = origin[1]! - ty * (tinyU * 0.55)
+      // Same small direction-aware nudge as guided markers (not a
+      // half-disc straight back along the tangent).
+      const c = nominalNumberCenter(origin[0]!, origin[1]!, tx, ty, u)
       drawGuideNumber(
         ctx,
-        nx,
-        ny,
-        tinyU,
+        c.x,
+        c.y,
+        u,
         scale,
         activeIdx + 1,
         hexToRgba(accent, 0.88),
@@ -670,7 +707,7 @@ function drawStrokeGuides(
           origin[1]!,
           tx,
           ty,
-          tinyU * 1.15,
+          u,
           scale,
           accent,
         )
@@ -679,14 +716,16 @@ function drawStrokeGuides(
   }
 
   // Tiny green ✓ just past each completed stroke tip (outside the path).
+  // Stays at the old 10–14px size; only the number + arrow grew.
+  const checkU = doneCheckSizeHanzi(cssSize, scale)
   if (strokeDone) {
     for (let i = 0; i < medians.length; i++) {
       if (!strokeDone[i]) continue
       const tip = endMedianPointAndTangent(medians[i]!)
       if (!tip) continue
-      const cx = tip.x + tip.tx * (u * 0.72)
-      const cy = tip.y + tip.ty * (u * 0.72)
-      drawStrokeDoneCheck(ctx, cx, cy, u, scale)
+      const cx = tip.x + tip.tx * (checkU * 0.72)
+      const cy = tip.y + tip.ty * (checkU * 0.72)
+      drawStrokeDoneCheck(ctx, cx, cy, checkU, scale)
     }
   }
   ctx.restore()
@@ -904,13 +943,13 @@ function finalizeMyInkAfterGesture(
 function prepareInkCtx(
   ctx: CanvasRenderingContext2D,
   dpr: number,
-  accent: string,
+  color: string,
 ): number {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
-  ctx.strokeStyle = accent
-  ctx.fillStyle = accent
+  ctx.strokeStyle = color
+  ctx.fillStyle = color
   const inkW = inkWidthCss()
   ctx.lineWidth = inkW
   return inkW
@@ -952,6 +991,20 @@ export default function TracePad({
   const lastStrokeDoneRef = useRef<boolean[] | null>(null)
   /** True after a stroke passes in the current pen gesture — clear leftover purple on pen-up. */
   const gesturePassedStrokeRef = useRef(false)
+  /** CSS points of the in-progress gesture, redrawn each move so the whole trace stays one color. */
+  const gesturePtsRef = useRef<{ x: number; y: number }[]>([])
+  /** Active median (device px) frozen at pen-down so a lock does not recolor the gesture. */
+  const gestureMedianRef = useRef<{ x: number; y: number }[] | null>(null)
+  /** Store pixels before this gesture, used to strip live green on a miss. */
+  const gestureSnapRef = useRef<ImageData | null>(null)
+  const gestureSawGreenRef = useRef(false)
+  /**
+   * After a stroke passes mid-gesture, ignore further pointermoves until pen-up.
+   * Prevents painting a continuation onto the next stroke while the finger stays down.
+   */
+  const gestureDrawBlockedRef = useRef(false)
+  /** checkGrade sets this when a stroke passes mid-gesture; flushed after redraw. */
+  const snapClearGuideWhileDownRef = useRef(false)
   /**
    * Unique brush-coverage bits for the active stroke attempt (device px).
    * Compared to strokeAreas[active] * 1.5 for anti-scribble.
@@ -1728,20 +1781,28 @@ export default function TracePad({
       lastStrokeDoneRef.current = status.strokeDone.slice()
     }
 
-    // Guide mode: after a stroke passes, hide hand ink so only the green
-    // guide remains. Extra writing after that stays accent-purple and still
-    // stamps toward remaining strokes. Mark this gesture so pen-up clears
-    // any post-success leftover purple immediately (not on the next stroke).
+    // A pass marks the gesture. While the pointer is still down, block further
+    // drawing until pen-up (no continuation onto the next stroke). Guide mode
+    // snap-clears the passed hand ink immediately (flushed after this redraw).
+    if (newlyDone) {
+      gesturePassedStrokeRef.current = true
+      if (drawingRef.current) gestureDrawBlockedRef.current = true
+    }
+
+    // Guide mode: snap-clear hand ink the moment the stroke is judged passed.
     if (!showInk && (newlyDone || status.pass)) {
-      clearCanvasPixels(inkCanvasRef.current)
-      if (newlyDone) gesturePassedStrokeRef.current = true
+      if (drawingRef.current) {
+        snapClearGuideWhileDownRef.current = true
+      } else {
+        clearCanvasPixels(inkCanvasRef.current)
+      }
     }
 
     // My ink ON: turn this gesture’s ink green (readable) and trim only
     // extreme outliers far from the passed stroke path — keep the silhouette.
     // Then force-green all done-stroke keep regions so mid-gesture overdraw
     // after a pass (paintBits already cleared) cannot leave purple tails.
-    if (showInk && newlyDone && strokeData) {
+    if (showInk && newlyDone && strokeData && !drawingRef.current) {
       const store = inkStoreRef.current ?? ensureInkStore()
       // Keep store bitmap in sync with mask/ink canvas (mismatch → silent no-op).
       if (
@@ -1815,6 +1876,7 @@ export default function TracePad({
     }
 
     // New active stroke → reset paint-cap accumulator + baseline for retry.
+    // Live green keeps using the median frozen at pen-down until the pen lifts.
     if (newlyDone) {
       resetStrokeFailCount()
       if (!status.pass) {
@@ -1851,6 +1913,8 @@ export default function TracePad({
       showMyStrokesRef.current = false
       prevStrokeDoneRef.current = null
       gesturePassedStrokeRef.current = false
+      gestureDrawBlockedRef.current = false
+      snapClearGuideWhileDownRef.current = false
       resetStrokeFailCount()
 
       resizeCanvases()
@@ -2319,6 +2383,12 @@ export default function TracePad({
       }
       clearPaintBits()
       gesturePassedStrokeRef.current = false
+      gestureDrawBlockedRef.current = false
+      gesturePtsRef.current = []
+      gestureMedianRef.current = null
+      gestureSawGreenRef.current = false
+      gestureSnapRef.current = null
+      snapClearGuideWhileDownRef.current = false
       const maskNow = maskRef.current
       const ooo =
         maskNow != null
@@ -2366,6 +2436,167 @@ export default function TracePad({
     [ensurePaintBits],
   )
 
+  const snapshotGestureStore = () => {
+    const store = inkStoreRef.current
+    gestureSnapRef.current = null
+    if (!store || store.width <= 0 || store.height <= 0) return
+    const ctx = store.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return
+    try {
+      gestureSnapRef.current = ctx.getImageData(0, 0, store.width, store.height)
+    } catch {
+      gestureSnapRef.current = null
+    }
+  }
+
+  /**
+   * Guide mode: a stroke just passed while the pointer is still down.
+   * Snap-clear the visible hand ink immediately and drop the live point list.
+   * Drawing stays blocked (gestureDrawBlockedRef) until pen-up — do not paint
+   * a continuation onto the next stroke while the finger remains down.
+   * Passed ink remains in the offscreen store for My ink; guide redraws must
+   * not blit that archive back onto the visible canvas.
+   */
+  const flushGuideSnapClear = () => {
+    if (!snapClearGuideWhileDownRef.current) return
+    snapClearGuideWhileDownRef.current = false
+    if (showMyStrokesRef.current) return
+    gesturePtsRef.current = []
+    gestureSawGreenRef.current = false
+    gestureMedianRef.current = null
+    clearCanvasPixels(inkCanvasRef.current)
+  }
+
+  /** Guide mode: once any stroke has passed, never blit archived user ink. */
+  const guideHidesArchiveInk = () => {
+    if (showMyStrokesRef.current) return false
+    const done = prevStrokeDoneRef.current
+    return !!done && done.some(Boolean)
+  }
+
+  /**
+   * Redraw this pen-down from the pre-gesture snapshot.
+   * A correct forward trace is green for the whole gesture, every move,
+   * while the pen is down. Off-path / wrong direction stays accent.
+   * Pass/fail of the level is unchanged — this is ink color only.
+   */
+  const paintGesturePoints = (
+    ctx: CanvasRenderingContext2D,
+    pts: { x: number; y: number }[],
+    dpr: number,
+    colorAt: (i: number) => string,
+  ) => {
+    if (pts.length === 0) return
+    if (pts.length === 1) {
+      const inkW = prepareInkCtx(ctx, dpr, colorAt(0))
+      ctx.beginPath()
+      ctx.arc(pts[0]!.x, pts[0]!.y, inkW / 2, 0, Math.PI * 2)
+      ctx.fill()
+      return
+    }
+    prepareInkCtx(ctx, dpr, colorAt(0))
+    const inkW = inkWidthCss()
+    ctx.beginPath()
+    ctx.arc(pts[0]!.x, pts[0]!.y, inkW / 2, 0, Math.PI * 2)
+    ctx.fill()
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1]!
+      const b = pts[i]!
+      prepareInkCtx(ctx, dpr, colorAt(i))
+      ctx.beginPath()
+      ctx.moveTo(a.x, a.y)
+      ctx.lineTo(b.x, b.y)
+      ctx.stroke()
+    }
+  }
+
+  const redrawLiveGesture = () => {
+    const snap = gestureSnapRef.current
+    const store = inkStoreRef.current
+    const visible = inkCanvasRef.current
+    const mask = maskRef.current
+    const pts = gesturePtsRef.current
+    if (!store || !visible || !mask || pts.length === 0) return
+    const sctx = store.getContext('2d', { willReadFrequently: true })
+    if (!sctx) return
+    if (snap && store.width === snap.width && store.height === snap.height) {
+      sctx.putImageData(snap, 0, 0)
+    }
+    const dpr = mask.dpr
+    const median = gestureMedianRef.current
+    const flags =
+      median && median.length > 0
+        ? classifyLiveGesture(
+            median,
+            pts.map((p) => ({ x: p.x * dpr, y: p.y * dpr })),
+            dpr,
+          )
+        : pts.map(() => false)
+    gestureSawGreenRef.current = flags.some(Boolean)
+    const colorAt = (i: number) => (flags[i] ? DONE_STROKE_GREEN : accent)
+    paintGesturePoints(sctx, pts, dpr, colorAt)
+    // After any stroke has passed, the store keeps baked ink for My ink, but
+    // guide mode must not blit those cleared strokes back onto the visible pad.
+    if (guideHidesArchiveInk()) {
+      clearCanvasPixels(visible)
+      const vctx = visible.getContext('2d')
+      if (vctx) paintGesturePoints(vctx, pts, dpr, colorAt)
+      return
+    }
+    blitCanvas(store, visible)
+  }
+
+  /** Miss / pen-up without a pass: put this gesture back to non-green ink. */
+  const revertLiveGreenGesture = () => {
+    if (!gestureSawGreenRef.current) return
+    const snap = gestureSnapRef.current
+    const store = inkStoreRef.current
+    const visible = inkCanvasRef.current
+    const mask = maskRef.current
+    const pts = gesturePtsRef.current
+    gestureSawGreenRef.current = false
+    if (!snap || !store || !mask || !visible) return
+    if (store.width !== snap.width || store.height !== snap.height) return
+    const sctx = store.getContext('2d', { willReadFrequently: true })
+    if (!sctx) return
+    sctx.putImageData(snap, 0, 0)
+    const dpr = mask.dpr
+    const hideArchive = guideHidesArchiveInk()
+    if (hideArchive) {
+      clearCanvasPixels(visible)
+    } else {
+      blitCanvas(store, visible)
+    }
+    if (pts.length === 0) return
+    const drawDot = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
+      const inkW = prepareInkCtx(ctx, dpr, accent)
+      ctx.beginPath()
+      ctx.arc(x, y, inkW / 2, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    const targets = [store, visible]
+    if (pts.length === 1) {
+      for (const target of targets) {
+        const ctx = target.getContext('2d')
+        if (ctx) drawDot(ctx, pts[0]!.x, pts[0]!.y)
+      }
+      return
+    }
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1]!
+      const b = pts[i]!
+      for (const target of targets) {
+        const ctx = target.getContext('2d')
+        if (!ctx) continue
+        prepareInkCtx(ctx, dpr, accent)
+        ctx.beginPath()
+        ctx.moveTo(a.x, a.y)
+        ctx.lineTo(b.x, b.y)
+        ctx.stroke()
+      }
+    }
+  }
+
   // Pointer drawing on ink canvas (+ offscreen store).
   useEffect(() => {
     const canvas = inkCanvasRef.current
@@ -2379,11 +2610,6 @@ export default function TracePad({
       }
     }
 
-    const inkTargets = () => {
-      const store = inkStoreRef.current ?? ensureInkStore()
-      return [canvas, store]
-    }
-
     const onDown = (e: PointerEvent) => {
       if (phase !== 'writing' || doneRef.current) return
       e.preventDefault()
@@ -2391,47 +2617,49 @@ export default function TracePad({
       drawingRef.current = true
       const pt = getPos(e)
       lastPtRef.current = pt
+      gesturePtsRef.current = [pt]
+      gestureSawGreenRef.current = false
+      snapshotGestureStore()
       const mask = maskRef.current
-      if (!mask) return
-      const dpr = mask.dpr
-      for (const target of inkTargets()) {
-        const ctx = target.getContext('2d')
-        if (!ctx) continue
-        const inkW = prepareInkCtx(ctx, dpr, accent)
-        ctx.beginPath()
-        ctx.arc(pt.x, pt.y, inkW / 2, 0, Math.PI * 2)
-        ctx.fill()
+      if (mask) {
+        const active = activeStrokeIndex(
+          prevStrokeDoneRef.current,
+          mask.mappedStrokes.length,
+        )
+        gestureMedianRef.current = mask.mappedStrokes[active] ?? null
+      } else {
+        gestureMedianRef.current = null
       }
+      gestureDrawBlockedRef.current = false
+      snapClearGuideWhileDownRef.current = false
+      redrawLiveGesture()
+      if (!mask) return
       if (stampStrokePaint(mask, pt.x, pt.y, pt.x, pt.y)) {
         rejectStrokeOverpaint(e.pointerId)
         return
       }
       checkGrade()
+      flushGuideSnapClear()
     }
 
     const onMove = (e: PointerEvent) => {
       if (!drawingRef.current || phase !== 'writing' || doneRef.current) return
       e.preventDefault()
+      // Stroke already passed this gesture — wait for finger lift.
+      if (gestureDrawBlockedRef.current) return
       const pt = getPos(e)
       const prev = lastPtRef.current ?? pt
       lastPtRef.current = pt
+      gesturePtsRef.current.push(pt)
       const mask = maskRef.current
+      redrawLiveGesture()
       if (!mask) return
-      const dpr = mask.dpr
-      for (const target of inkTargets()) {
-        const ctx = target.getContext('2d')
-        if (!ctx) continue
-        prepareInkCtx(ctx, dpr, accent)
-        ctx.beginPath()
-        ctx.moveTo(prev.x, prev.y)
-        ctx.lineTo(pt.x, pt.y)
-        ctx.stroke()
-      }
       if (stampStrokePaint(mask, prev.x, prev.y, pt.x, pt.y)) {
         rejectStrokeOverpaint(e.pointerId)
         return
       }
       checkGrade()
+      flushGuideSnapClear()
     }
 
     const onUp = (e: PointerEvent) => {
@@ -2512,8 +2740,12 @@ export default function TracePad({
         gesturePassedStrokeRef.current = false
       } else if (!doneRef.current) {
         // Pen-up without completing the target stroke counts as a fail.
+        // Drop any in-progress green so a miss stays non-green.
+        revertLiveGreenGesture()
         recordStrokeFail()
       }
+      gestureDrawBlockedRef.current = false
+      snapClearGuideWhileDownRef.current = false
       // Archive completed gesture for Undo (skip if level already passed).
       if (!doneRef.current) {
         const snap = captureInkSnapshot()

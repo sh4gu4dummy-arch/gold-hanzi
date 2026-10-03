@@ -49,6 +49,20 @@ Router-only differences in pages: `react-router-dom` `Link` / `useParams` here v
 
 ## Log
 
+### 2026-10-03 — Thicker ink, live green, closer numbers (v0.052)
+
+**Who:** gold-hanzi (repo Grok)  
+**Paths:** `TracePad.tsx`, `grading.ts`, `index.css`, `version.ts`
+
+- **Thicker pen + guide:** visual ink `inkWidthCss()` is ~28–38px. Guide paths get a round 9px halo. Pass corridor stays the old 16–22px via `gradingInkWidthCss()` so a fatter pen does not loosen grading.
+- **Softer start/end:** tip hit radius is 2.15× the body corridor for arc-length t ≤ 0.22 and t ≥ 0.90 (`STROKE_TIP_RADIUS_FACTOR`). The middle stays tight.
+- **Live green:** while the finger is down on the current stroke, ink that stays on the median paints done-green for the whole correct gesture (`classifyLiveGesture`). Off-path or backward stays accent; a miss reverts that gesture to non-green.
+- **Snap-clear on pass:** guide mode clears the visible hand ink the moment the stroke passes (store still keeps it for My ink).
+- **No reshow:** after any stroke has passed, guide redraws do not blit archived user ink back onto the pad.
+- **Lift to continue:** a pass while the pointer is still down blocks further drawing until finger lift, so a continuation cannot paint the next stroke.
+- **Stroke number:** current-stroke disc and direction arrow share one larger size (~32–44px). The number sits closer to the start (smaller back/side nudge). Hidden-level cue uses that same size, not a tiny disc.
+- **Bigger character-clear:** check badge ~48% of the pad (up to ~188px), larger toast (~26–34px), and bigger/longer confetti. Still a dismissable pad overlay, not a modal.
+
 ### 2026-10-02 — Auto help toggle (v0.051)
 
 **Who:** gold-hanzi (repo Grok)  
