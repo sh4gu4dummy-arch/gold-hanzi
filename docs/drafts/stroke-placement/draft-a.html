@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Gold Tracing — Demo / stroke placement drafts</title>
+<style>
+  :root {
+    --bg: #0f0f14;
+    --surface: #1a1a24;
+    --line: #3a3a4a;
+    --muted: #9a9ab0;
+    --text: #e8e8f0;
+    --accent: #7c5cff;
+    --accent-ink: #c4b5ff;
+    --pad: #12121a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #2a2a35;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--text);
+    padding: 24px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 28px;
+    justify-content: center;
+    align-items: flex-start;
+  }
+  .phone {
+    width: 390px;
+    height: 844px;
+    background: var(--bg);
+    border-radius: 28px;
+    border: 3px solid #444;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    box-shadow: 0 12px 40px rgba(0,0,0,.45);
+  }
+  .label {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    background: #ffb020;
+    color: #1a1200;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 3px 10px;
+    border-radius: 999px;
+    letter-spacing: .02em;
+  }
+  .top {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 36px 10px 6px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .home {
+    border: 1px solid var(--accent);
+    color: var(--accent-ink);
+    background: transparent;
+    border-radius: 10px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .prog { flex: 1; font-size: 10px; line-height: 1.25; }
+  .ver { font-size: 10px; opacity: .7; }
+  .phrase {
+    margin: 4px 10px;
+    background: var(--surface);
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .phrase strong { color: var(--accent-ink); font-weight: 600; }
+  .levels {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+  }
+  .pip {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 2px solid var(--line);
+    display: grid; place-items: center;
+    font-size: 12px; font-weight: 800; color: var(--muted);
+  }
+  .pip.on { border-color: var(--accent); color: var(--accent-ink); }
+  .pill {
+    appearance: none;
+    border: none;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 800;
+    background: color-mix(in srgb, var(--accent) 92%, black);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    white-space: nowrap;
+  }
+  .pill.ghost {
+    background: var(--surface);
+    color: var(--muted);
+    opacity: .62;
+    box-shadow: none;
+    border: 1px solid var(--line);
+  }
+  .pinyin-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 4px 10px 2px;
+  }
+  .pinyin {
+    font-size: 36px;
+    font-weight: 600;
+    color: var(--accent-ink);
+    line-height: 1.2;
+  }
+  .spk { font-size: 16px; opacity: .85; }
+  .strokes {
+    text-align: center;
+    font-size: 12px;
+    color: var(--accent-ink);
+    opacity: .75;
+    padding: 0 10px 6px;
+  }
+  .stage-wrap {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 14px 8px;
+    position: relative;
+  }
+  .pad {
+    width: min(100%, 340px);
+    aspect-ratio: 1;
+    background: var(--pad);
+    border: 1.5px solid #ccc;
+    border-radius: 4px;
+    position: relative;
+    background-image:
+      linear-gradient(to right, transparent 49.5%, rgba(255,255,255,.25) 49.5%, rgba(255,255,255,.25) 50.5%, transparent 50.5%),
+      linear-gradient(to bottom, transparent 49.5%, rgba(255,255,255,.25) 49.5%, rgba(255,255,255,.25) 50.5%, transparent 50.5%),
+      linear-gradient(45deg, transparent 49.6%, rgba(255,255,255,.12) 49.6%, rgba(255,255,255,.12) 50.4%, transparent 50.4%),
+      linear-gradient(-45deg, transparent 49.6%, rgba(255,255,255,.12) 49.6%, rgba(255,255,255,.12) 50.4%, transparent 50.4%);
+  }
+  .guide {
+    position: absolute;
+    left: 12%; right: 12%; top: 46%; height: 18px;
+    background: color-mix(in srgb, var(--accent) 35%, transparent);
+    border-radius: 4px;
+  }
+  .dock {
+    display: flex;
+    gap: 6px;
+    padding: 6px 12px 18px;
+    justify-content: center;
+  }
+  .dock button {
+    flex: 1;
+    max-width: 80px;
+    height: 58px;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 700;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+  }
+  .dock button.on {
+    background: color-mix(in srgb, var(--accent) 92%, black);
+    color: #fff;
+    border-color: color-mix(in srgb, var(--accent) 55%, white);
+  }
+  .dock .ic { font-size: 18px; }
+  .hint {
+    font-size: 10px;
+    color: #ffb020;
+    text-align: center;
+    padding: 0 12px 6px;
+    font-weight: 600;
+  }
+  /* Idea A overlays */
+  .overlay-tl {
+    position: absolute;
+    top: 8px; left: 8px;
+    display: flex; gap: 4px; z-index: 5;
+  }
+  .overlay-tr {
+    position: absolute;
+    top: 8px; right: 8px; z-index: 5;
+  }
+  .badge {
+    background: rgba(20,20,30,.85);
+    border: 1px solid var(--line);
+    color: var(--accent-ink);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 999px;
+    backdrop-filter: blur(4px);
+  }
+  .overlay-br {
+    position: absolute;
+    bottom: 10px; left: 50%;
+    transform: translateX(-50%);
+    z-index: 5;
+  }
+  .meta-one {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 10px 8px;
+  }
+  .meta-one .left { display: flex; gap: 4px; align-items: center; }
+  .meta-one .center { display: flex; align-items: center; gap: 6px; }
+  .meta-one .pinyin { font-size: 28px; }
+  .caption {
+    width: 390px;
+    text-align: center;
+    color: #ddd;
+    font-size: 13px;
+    margin-top: -18px;
+    margin-bottom: 4px;
+  }
+  .caption b { color: #ffb020; }
+
+    body { background:#111; padding:16px; display:flex; justify-content:center; }
+    .caption { display:none }
+    #x, #idea-b, #idea-c { display:none !important; }
+    body > div:has(#idea-a) .caption { display:block; color:#ffb020; margin-bottom:8px; }
+    
+</style>
+</head>
+<body><style>body>div:not(:has(#idea-a)){display:none!important}</style>
+
+<!-- IDEA A -->
+<div>
+  <div class="caption"><b>A</b> — Demo/Replay + strokes float on the pad</div>
+  <div class="phone" id="idea-a">
+    <div class="label">Draft A</div>
+    <div class="top">
+      <button class="home">⌂ Home</button>
+      <div class="prog">Lesson 1 – 0/12<br>HSK band 1 – 0/176</div>
+      <span class="ver">v0.042</span>
+      <span>☀</span>
+    </div>
+    <div class="phrase">Phrase · <strong>yī tiān</strong> · one day 🔊</div>
+    <div class="levels" style="justify-content:center">
+      <span class="pip on">1</span>
+      <span class="pip">2</span>
+      <span class="pip">3</span>
+    </div>
+    <div class="pinyin-row">
+      <span class="pinyin">yī</span>
+      <span class="spk">🔊</span>
+    </div>
+    <div class="hint">Levels alone · chrome on pad</div>
+    <div class="stage-wrap">
+      <div class="pad">
+        <div class="overlay-tl">
+          <button class="pill">▶ Demo</button>
+          <button class="pill">Replay</button>
+        </div>
+        <div class="overlay-tr"><span class="badge">0/3</span></div>
+        <div class="guide"></div>
+      </div>
+    </div>
+    <div class="dock">
+      <button><span class="ic">▢</span>Guide</button>
+      <button><span class="ic">↶</span>Undo</button>
+      <button><span class="ic">⌫</span>Clear</button>
+      <button class="on"><span class="ic">🎧</span>Auto</button>
+    </div>
+  </div>
+</div>
+
+<!-- IDEA B -->
+<div>
+  <div class="caption"><b>B</b> — One meta row under pinyin</div>
+  <div class="phone" id="idea-b">
+    <div class="label">Draft B</div>
+    <div class="top">
+      <button class="home">⌂ Home</button>
+      <div class="prog">Lesson 1 – 0/12<br>HSK band 1 – 0/176</div>
+      <span class="ver">v0.042</span>
+      <span>☀</span>
+    </div>
+    <div class="phrase">Phrase · <strong>yī tiān</strong> · one day 🔊</div>
+    <div class="levels" style="justify-content:center; gap:8px">
+      <span class="pip on">1</span>
+      <span class="pip">2</span>
+      <span class="pip">3</span>
+    </div>
+    <div class="pinyin-row" style="padding-bottom:0">
+      <span class="pinyin">yī</span>
+      <span class="spk">🔊</span>
+    </div>
+    <div class="meta-one">
+      <div class="left">
+        <button class="pill">▶ Demo</button>
+        <button class="pill">Replay</button>
+      </div>
+      <div class="center">
+        <span class="badge">0/3 strokes</span>
+      </div>
+    </div>
+    <div class="hint">Pinyin up · Demo + count share one strip</div>
+    <div class="stage-wrap">
+      <div class="pad"><div class="guide"></div></div>
+    </div>
+    <div class="dock">
+      <button><span class="ic">▢</span>Guide</button>
+      <button><span class="ic">↶</span>Undo</button>
+      <button><span class="ic">⌫</span>Clear</button>
+      <button class="on"><span class="ic">🎧</span>Auto</button>
+    </div>
+  </div>
+</div>
+
+<!-- IDEA C -->
+<div>
+  <div class="caption"><b>C</b> — Demo top-right of pad · count above dock</div>
+  <div class="phone" id="idea-c">
+    <div class="label">Draft C</div>
+    <div class="top">
+      <button class="home">⌂ Home</button>
+      <div class="prog">Lesson 1 – 0/12<br>HSK band 1 – 0/176</div>
+      <span class="ver">v0.042</span>
+      <span>☀</span>
+    </div>
+    <div class="phrase">Phrase · <strong>yī tiān</strong> · one day 🔊</div>
+    <div class="levels" style="justify-content:center">
+      <span class="pip on">1</span>
+      <span class="pip">2</span>
+      <span class="pip">3</span>
+    </div>
+    <div class="pinyin-row">
+      <span class="pinyin">yī</span>
+      <span class="spk">🔊</span>
+    </div>
+    <div class="hint">Clean mid · Demo corner · count near tools</div>
+    <div class="stage-wrap">
+      <div class="pad">
+        <div class="overlay-tr" style="display:flex;gap:4px;top:8px;right:8px">
+          <button class="pill" style="padding:5px 10px;font-size:10px">▶ Demo</button>
+          <button class="pill" style="padding:5px 10px;font-size:10px">Replay</button>
+        </div>
+        <div class="guide"></div>
+      </div>
+    </div>
+    <div style="text-align:center;font-size:12px;color:var(--accent-ink);opacity:.8;padding:0 0 4px;font-weight:700">0/3 strokes</div>
+    <div class="dock">
+      <button><span class="ic">▢</span>Guide</button>
+      <button><span class="ic">↶</span>Undo</button>
+      <button><span class="ic">⌫</span>Clear</button>
+      <button class="on"><span class="ic">🎧</span>Auto</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
