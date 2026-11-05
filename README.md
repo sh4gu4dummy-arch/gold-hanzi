@@ -2,6 +2,8 @@
 
 A handwriting practice app for Simplified Chinese characters — classic HSK 1–6 and HSK 3.0 bands 1–9 (classic catalog + lesson stroke chunks first; HSK 3.0 catalog/geometry only after toggle). Tap a character, watch a slow stroke-order guide, then freehand-trace until the stroke-centric grader passes.
 
+**Agents / replacement handover:** [docs/START-HERE.md](./docs/START-HERE.md) → [docs/HANDOVER.md](./docs/HANDOVER.md) (memory companion linked from there).
+
 **App Builder / Grok Bot handoff:** [GROK_APP_BUILDER.md](./GROK_APP_BUILDER.md) — notes from Grok App Builder for the other devs. Newest entry first.
 
 ## Run
